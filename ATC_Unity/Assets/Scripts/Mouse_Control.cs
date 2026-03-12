@@ -1,71 +1,55 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class Mouse_Control : MonoBehaviour
-
 {
-    [SerializeField] private Camera mainCamera;
-    private GameObject draggedObject;
+    private Transform dragging = null;
     private Vector3 offset;
+    private Vector3 originalPosition;
 
-    void Start()
+    private void Update()
     {
-        if (mainCamera == null)
-            mainCamera = Camera.main;
+        // Get mouse position from new Input System
+        Vector2 mouseScreenPosition = Mouse.current.position.ReadValue();
+        Vector3 mouseWorldPosition = Camera.main.ScreenToWorldPoint(new Vector3(mouseScreenPosition.x, mouseScreenPosition.y, 0));
 
-        Debug.Log("DragManager started");
-    }
+        // DEBUG: Show mouse position constantly
+        Debug.Log("Mouse Screen: " + mouseScreenPosition + " | Mouse World: " + mouseWorldPosition);
 
-    void Update()
-    {
         // Left click down
-        if (Input.GetMouseButtonDown(0))
+        if (Mouse.current.leftButton.wasPressedThisFrame)
         {
-            Debug.Log("Left click detected");
-            TryPickUpObject();
+            Debug.Log("LEFT CLICK PRESSED at: " + mouseWorldPosition);
+
+            RaycastHit2D hit = Physics2D.Raycast(mouseWorldPosition, Vector2.zero);
+
+            if (hit)
+            {
+                Debug.Log("HIT something! Object: " + hit.transform.name);
+                dragging = hit.transform;
+                originalPosition = dragging.position;
+                offset = dragging.position - mouseWorldPosition;
+                Debug.Log("Started dragging: " + dragging.name + " | Original position: " + originalPosition);
+            }
+            else
+            {
+                Debug.Log("No object hit at this position");
+            }
+        }
+        // Left click up
+        else if (Mouse.current.leftButton.wasReleasedThisFrame && dragging != null)
+        {
+            Debug.Log("LEFT CLICK RELEASED. Returning " + dragging.name + " to " + originalPosition);
+            dragging.position = originalPosition;
+            dragging = null;
+            Debug.Log("Drag ended");
         }
 
-        // Left click held
-        if (Input.GetMouseButton(0) && draggedObject != null)
+        // Drag while holding
+        if (dragging != null && Mouse.current.leftButton.isPressed)
         {
-            DragObject();
+            dragging.position = mouseWorldPosition + offset;
+            Debug.Log("Dragging " + dragging.name + " to: " + dragging.position);
         }
-
-        // Left click released
-        if (Input.GetMouseButtonUp(0) && draggedObject != null)
-        {
-            Debug.Log("Released: " + draggedObject.name);
-            draggedObject = null;
-        }
-    }
-
-    void TryPickUpObject()
-    {
-        // Get mouse position in world space
-        Vector3 mousePos = Input.mousePosition;
-        mousePos.z = -mainCamera.transform.position.z; // Distance from camera
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(mousePos);
-
-        // Cast a ray at that position (2D)
-        RaycastHit2D hit = Physics2D.Raycast(worldPos, Vector2.zero);
-
-        if (hit.collider != null)
-        {
-            Debug.Log("Hit object: " + hit.collider.gameObject.name);
-            draggedObject = hit.collider.gameObject;
-            offset = draggedObject.transform.position - worldPos;
-        }
-        else
-        {
-            Debug.Log("No object hit");
-        }
-    }
-
-    void DragObject()
-    {
-        Vector3 mousePos = Input.mousePosition;
-        mousePos.z = -mainCamera.transform.position.z;
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(mousePos);
-
-        draggedObject.transform.position = worldPos + offset;
     }
 }
