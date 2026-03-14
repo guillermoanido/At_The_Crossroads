@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class HandLayout : MonoBehaviour
 {
-    public float cardSpacing = 200f;
+    public float spacing = 200f;
     public float fanAngle = 15f;
     public float maxWidth = 1000f;
 
@@ -11,11 +11,27 @@ public class HandLayout : MonoBehaviour
 
     void Start()
     {
-        UpdateCardList();
+        Refresh();
+    }
+
+    private void Update()
+    {
+        UpdateLayout();
+    }
+    public void AddCard(RectTransform card)
+    {
+        cards.Add(card);
+        card.SetParent(transform, false);
         UpdateLayout();
     }
 
-    void UpdateCardList()
+    public void RemoveCard(RectTransform card)
+    {
+        cards.Remove(card);
+        UpdateLayout();
+    }
+
+    public void Refresh()
     {
         cards.Clear();
 
@@ -25,6 +41,8 @@ public class HandLayout : MonoBehaviour
             if (rect != null)
                 cards.Add(rect);
         }
+
+        UpdateLayout();
     }
 
     void UpdateLayout()
@@ -32,16 +50,27 @@ public class HandLayout : MonoBehaviour
         int count = cards.Count;
         if (count == 0) return;
 
-        float width = Mathf.Min(maxWidth, cardSpacing * (count - 1));
+        float width = Mathf.Min(maxWidth, spacing * (count - 1));
         float startX = -width / 2f;
+
+        bool useFan = count <= 6;   // only fan when few cards
 
         for (int i = 0; i < count; i++)
         {
             float x = count == 1 ? 0 : startX + i * (width / (count - 1));
-            float angle = count == 1 ? 0 : Mathf.Lerp(-fanAngle, fanAngle, (float)i / (count - 1));
 
             cards[i].anchoredPosition = new Vector2(x, 0);
-            cards[i].localRotation = Quaternion.Euler(0, 0, angle);
+
+            if (useFan)
+            {
+                float angle = Mathf.Lerp(-fanAngle, fanAngle, (float)i / (count - 1));
+                cards[i].localRotation = Quaternion.Euler(0, 0, angle);
+            }
+            else
+            {
+                cards[i].localRotation = Quaternion.identity;
+            }
         }
     }
+
 }

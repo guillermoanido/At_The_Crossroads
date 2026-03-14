@@ -3,9 +3,11 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
+
 public class Mouse_Controls_UI : MonoBehaviour
 {
     public GraphicRaycaster raycaster;
+    public Canvas canvas;
 
     private RectTransform dragging = null;
     private Vector2 offset;
@@ -34,8 +36,20 @@ public class Mouse_Controls_UI : MonoBehaviour
         {
             dragging = results[0].gameObject.GetComponent<RectTransform>();
 
+            if (dragging == null) return;
+
+            dragging.SetAsLastSibling(); // bring card to front
+
             originalPosition = dragging.anchoredPosition;
-            offset = dragging.anchoredPosition - mousePosition;
+
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                canvas.transform as RectTransform,
+                mousePosition,
+                canvas.worldCamera,
+                out Vector2 localMousePos
+            );
+
+            offset = dragging.anchoredPosition - localMousePos;
         }
     }
 
@@ -50,9 +64,15 @@ public class Mouse_Controls_UI : MonoBehaviour
 
     void HandleDragging(Vector2 mousePosition)
     {
-        if (dragging != null && Mouse.current.leftButton.isPressed)
-        {
-            dragging.position = mousePosition + offset;
-        }
+        if (dragging == null || !Mouse.current.leftButton.isPressed) return;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvas.transform as RectTransform,
+            mousePosition,
+            canvas.worldCamera,
+            out Vector2 localMousePos
+        );
+
+        dragging.anchoredPosition = localMousePos + offset;
     }
 }
