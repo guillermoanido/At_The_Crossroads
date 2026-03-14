@@ -22,8 +22,6 @@ public class Mouse_Control : MonoBehaviour
         Vector3 mouseWorldPosition = Camera.main.ScreenToWorldPoint(
             new Vector3(mouseScreenPosition.x, mouseScreenPosition.y, 0)
         );
-
-        Debug.Log("Mouse Screen: " + mouseScreenPosition + " | Mouse World: " + mouseWorldPosition);
         return mouseWorldPosition;
     }
 
