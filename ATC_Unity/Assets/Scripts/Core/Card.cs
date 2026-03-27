@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 
 [CreateAssetMenu(fileName = "New Card", menuName = "Card")]
