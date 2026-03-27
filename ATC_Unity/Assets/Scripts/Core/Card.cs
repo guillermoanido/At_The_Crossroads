@@ -1,19 +1,24 @@
 using UnityEngine;
 
+
+[CreateAssetMenu(fileName = "New Card", menuName = "Card")]
 public class Card : ScriptableObject 
 {
     public string cardName;
     public CardType cardType;
+    public SpeedType speedType;
 
     public int energyCost;
 
-    public int speed;
-    public int damage;
+    public int damageMin;
+    public int damageMax;
 
     public int strRequired;
     public int intRequired;
     public int wisRequired;
     public int dexRequired;
+
+    public string effectDescription;
 
     public enum CardType
     {
@@ -28,9 +33,13 @@ public class Card : ScriptableObject
         Skill,
         Spell,
         Talent,
-        Weapon,
+        Weapon
     }
 
-
+    public enum SpeedType
+    {
+        Reflex,
+        Channel
+    }
 
 }
