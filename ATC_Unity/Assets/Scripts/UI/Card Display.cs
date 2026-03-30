@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-public class CardDisplay
+public class CardDisplay: MonoBehaviour
 {
     public Card cardData;
 
