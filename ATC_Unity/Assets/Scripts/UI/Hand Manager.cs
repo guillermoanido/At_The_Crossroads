@@ -7,7 +7,11 @@ public class HandManager : MonoBehaviour
 {
     public GameObject cardPrefab;
     public Transform handPosition;
+    
     public float fanSpread = 5f;
+    public float cardSpacing = 100f;
+    public float verticalSpacing = 10f;
+
     public List<GameObject> cardsInHand = new List<GameObject>();
 
     private void Start()
@@ -30,14 +34,18 @@ public class HandManager : MonoBehaviour
         int cardCount = cardsInHand.Count;
         for (int i = 0; i < cardCount; i++)
         {
-            float rotationAngle = (fanSpread * (i - (cardCount-1) / 2f)) ;
+            float rotationAngle = (fanSpread * (i - (cardCount-1) / 2f));
             cardsInHand[i].transform.localRotation = Quaternion.Euler(0f, 0f, rotationAngle);
+
+            float horizontalOffset = (cardSpacing * (i - (cardCount - 1) / 2f));
+            float verticalOffset = (verticalSpacing * (i - (cardCount - 1) / 2f));
+            cardsInHand[i].transform.localPosition = new Vector3(horizontalOffset, verticalOffset, 0f);
         }
     }
 
     private void Update()
     {
-        
+        UpdateHandVisuals();
     }
 
 
