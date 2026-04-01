@@ -8,6 +8,14 @@ public class DeckManager : MonoBehaviour
 
     private int currentCardIndex = 0;
 
+    private void Start()
+    {
+        Card[] cards = Resources.LoadAll<Card>("Cards");
+
+        allCards.AddRange(cards);
+
+    }
+
     public void DrawCard(HandManager handManager)
     {
         if (allCards.Count == 0)

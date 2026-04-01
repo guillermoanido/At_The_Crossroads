@@ -15,11 +15,11 @@ MonoBehaviour:
   cardName: Brace
   cardType: 8
   speedType: 0
-  energyCost: 0
+  energyCost: 1
   damageMin: 0
   damageMax: 0
   strRequired: 5
   intRequired: 0
   wisRequired: 0
   dexRequired: 0
-  effectDescription: 
+  effectDescription: Gain 4 Block
