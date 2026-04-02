@@ -23,7 +23,7 @@ public class HandManager : MonoBehaviour
 
     void Update()
     {
-        UpdateHandVisuals();
+        //UpdateHandVisuals();
     }
 
     public void AddCardToHand(Card cardData)
