@@ -1,7 +1,8 @@
-using UnityEngine;
-using UnityEngine.EventSystems;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 
 public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerEnterHandler, IPointerExitHandler
 {
@@ -30,7 +31,7 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
-        canvas = GetComponent<Canvas>(); // inparent
+        canvas = GetComponentInParent<Canvas>();
         originalScale = rectTransform.localScale;
         originalRotation = rectTransform.localRotation;
         originalPosition = rectTransform.localPosition;
@@ -45,14 +46,14 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
                 break;
             case 2:
                 HandleDragState();
-                if (!Input.GetMouseButtonDown(0)) // mouse release
+                if (!Mouse.current.leftButton.isPressed)
                 {
                     TransitionToState0 ();
                 }
                 break;
             case 3:
                 HandlePlayState();
-                if (!Input.GetMouseButtonDown(0))
+                if (!Mouse.current.leftButton.isPressed)
                 {
                     TransitionToState0();
                 }
@@ -120,4 +121,21 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         rectTransform.localScale = originalScale * selectScale;
         rectTransform.localRotation = Quaternion.Lerp(rectTransform.localRotation, Quaternion.Euler(0, 0, 0), Time.deltaTime * 10f);
     }   
+
+    private void HandleDragState()
+    {
+        rectTransform.localRotation = Quaternion.identity;
+    }
+
+    private void HandlePlayState()
+    {
+        rectTransform.localPosition = playPosition;
+        rectTransform.localRotation = Quaternion.identity;
+
+        if (Input.mousePosition.y < cardPlay.y)
+        {
+            currentState = 2;
+            playArrow.SetActive(false);
+        }
+    }
 }

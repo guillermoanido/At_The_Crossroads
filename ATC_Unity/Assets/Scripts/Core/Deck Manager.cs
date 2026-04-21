@@ -30,7 +30,7 @@ public class DeckManager : MonoBehaviour
         }
         Card nextCard = allCards[currentCardIndex];
         handManager.AddCardToHand(nextCard);
-        currentCardIndex = (currentCardIndex +1) & allCards.Count;
+        currentCardIndex = (currentCardIndex + 1) % allCards.Count;
     }
 
 
