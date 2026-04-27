@@ -12,7 +12,18 @@ public class HandManager : MonoBehaviour
     public float cardSpacing = 100f;
     public float verticalSpacing = 10f;
 
+    [SerializeField] private int maxHandSize = 10;
+
+    public Player Owner { get; private set; }
+
     public List<GameObject> cardsInHand = new List<GameObject>();
+
+    public bool IsHandFull => cardsInHand.Count >= maxHandSize;
+
+    public void SetOwner(Player player)
+    {
+        Owner = player;
+    }
 
     public void AddCardToHand(Card cardData)
     {

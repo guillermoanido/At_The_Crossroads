@@ -4,16 +4,12 @@ using UnityEngine.InputSystem;
 
 public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerEnterHandler, IPointerExitHandler
 {
-    public enum CardState { Idle, Hover, Drag, Play }
+    public enum CardState { Idle, Hover, Drag }
 
     [SerializeField] private float selectScale = 1.1f;
-    [SerializeField] private float playZoneY = 400f;
-    [SerializeField] private Vector3 playPosition;
     [SerializeField] private GameObject glowEffect;
-    [SerializeField] private GameObject playArrow;
 
     private RectTransform rectTransform;
-    private Canvas canvas;
     private RectTransform canvasRect;
     private HandManager handManager;
     private Camera pressCamera;
@@ -29,8 +25,7 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
-        canvas = GetComponentInParent<Canvas>();
-        canvasRect = canvas.GetComponent<RectTransform>();
+        canvasRect = GetComponentInParent<Canvas>().GetComponent<RectTransform>();
         slotScale = rectTransform.localScale;
     }
 
@@ -41,8 +36,6 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
 
     void Update()
     {
-        float mouseY = Mouse.current.position.ReadValue().y;
-
         switch (State)
         {
             case CardState.Hover:
@@ -53,28 +46,8 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
 
             case CardState.Drag:
                 rectTransform.localRotation = Quaternion.identity;
-                if (mouseY > playZoneY)
-                {
-                    State = CardState.Play;
-                    playArrow.SetActive(true);
-                }
-                else if (!Mouse.current.leftButton.isPressed)
+                if (!Mouse.current.leftButton.isPressed)
                     ReturnToSlot();
-                break;
-
-            case CardState.Play:
-                rectTransform.localPosition = playPosition;
-                rectTransform.localRotation = Quaternion.identity;
-                if (mouseY < playZoneY)
-                {
-                    State = CardState.Drag;
-                    playArrow.SetActive(false);
-                    dragCardOrigin = playPosition;
-                    RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                        canvasRect, Mouse.current.position.ReadValue(), pressCamera, out dragPointerOrigin);
-                }
-                else if (!Mouse.current.leftButton.isPressed)
-                    PlayCard();
                 break;
         }
     }
@@ -102,19 +75,12 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     {
         State = CardState.Idle;
         glowEffect.SetActive(false);
-        playArrow.SetActive(false);
         ApplySlot();
-    }
-
-    private void PlayCard()
-    {
-        handManager.RemoveCardFromHand(gameObject);
-        Destroy(gameObject);
     }
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        if (State == CardState.Idle)
+        if (State == CardState.Idle && GameManager.Instance.IsActivePlayer(handManager.Owner))
             State = CardState.Hover;
     }
 
@@ -142,7 +108,6 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
             canvasRect, eventData.position, pressCamera, out Vector2 localPos))
         {
-            localPos /= canvas.scaleFactor;
             rectTransform.localPosition = dragCardOrigin + (Vector3)(localPos - dragPointerOrigin);
         }
     }

@@ -3,26 +3,35 @@ using UnityEngine;
 
 public class DeckManager : MonoBehaviour
 {
-    [SerializeField] private HandManager handManager;
-
     public List<Card> allCards = new List<Card>();
 
     private int currentCardIndex = 0;
 
-    private void Start()
+    private void Awake()
     {
         Card[] cards = Resources.LoadAll<Card>("Cards");
         allCards.AddRange(cards);
 
-        for (int i = 0; i < 6; i++)
-            DrawCard(handManager);
+        if (allCards.Count == 0)
+            Debug.LogError("DeckManager: No Card assets found in Resources/Cards.");
+    }
+
+    public void DealStartingHand(HandManager hand, int cardCount = 6)
+    {
+        for (int i = 0; i < cardCount; i++)
+            DrawCard(hand);
     }
 
     public void DrawCard(HandManager hand)
     {
         if (allCards.Count == 0)
         {
-            Debug.LogWarning("Deck is empty! Cannot draw a card.");
+            Debug.LogWarning("Deck is empty.");
+            return;
+        }
+        if (hand.IsHandFull)
+        {
+            Debug.LogWarning("Hand is full.");
             return;
         }
         hand.AddCardToHand(allCards[currentCardIndex]);
