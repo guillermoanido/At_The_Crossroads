@@ -12,6 +12,9 @@ public class HandManager : MonoBehaviour
     public float cardSpacing = 100f;
     public float verticalSpacing = 10f;
 
+    // Enable for Player 2 so the fan arcs upward and rotations are mirrored.
+    [SerializeField] private bool isFlipped = false;
+
     [SerializeField] private int maxHandSize = 10;
 
     public Player Owner { get; private set; }
@@ -47,6 +50,8 @@ public class HandManager : MonoBehaviour
         int cardCount = cardsInHand.Count;
         if (cardCount == 0) return;
 
+        float flip = isFlipped ? -1f : 1f;
+
         if (cardCount == 1)
         {
             cardsInHand[0].GetComponent<CardMovement>().SetSlot(Vector3.zero, Quaternion.identity, Vector3.one);
@@ -55,12 +60,12 @@ public class HandManager : MonoBehaviour
 
         for (int i = 0; i < cardCount; i++)
         {
-            float rotationAngle = fanSpread * (i - (cardCount - 1) / 2f);
+            float rotationAngle = flip * fanSpread * (i - (cardCount - 1) / 2f);
             Quaternion rotation = Quaternion.Euler(0f, 0f, rotationAngle);
 
             float horizontalOffset = cardSpacing * (i - (cardCount - 1) / 2f);
             float normalizedPosition = 2f * i / (cardCount - 1) - 1f;
-            float verticalOffset = verticalSpacing * (1 - normalizedPosition * normalizedPosition);
+            float verticalOffset = flip * verticalSpacing * (1 - normalizedPosition * normalizedPosition);
 
             Vector3 position = new Vector3(horizontalOffset, verticalOffset, 0f);
             cardsInHand[i].GetComponent<CardMovement>().SetSlot(position, rotation, Vector3.one);
