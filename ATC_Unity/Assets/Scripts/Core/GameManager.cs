@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
-    public enum GamePhase { Prep, Main1, Combat, Main2, EndTurn }
+    public enum GamePhase { Draw, Main1, Combat, Main2, EndTurn }
 
     public static GameManager Instance { get; private set; }
 
@@ -32,15 +32,14 @@ public class GameManager : MonoBehaviour
         player1.deckManager.DealStartingHand(player1.handManager);
         player2.deckManager.DealStartingHand(player2.handManager);
         SetActivePlayer(player1);
-        BeginPhase(GamePhase.Prep);
+        BeginPhase(GamePhase.Draw);
     }
 
-    // Call this from UI buttons or game logic to move to the next phase.
     public void AdvancePhase()
     {
         switch (CurrentPhase)
         {
-            case GamePhase.Prep:    BeginPhase(GamePhase.Main1);   break;
+            case GamePhase.Draw:    BeginPhase(GamePhase.Main1);   break;
             case GamePhase.Main1:   BeginPhase(GamePhase.Combat);  break;
             case GamePhase.Combat:  BeginPhase(GamePhase.Main2);   break;
             case GamePhase.Main2:   BeginPhase(GamePhase.EndTurn); break;
@@ -51,18 +50,28 @@ public class GameManager : MonoBehaviour
     private void BeginPhase(GamePhase phase)
     {
         CurrentPhase = phase;
+        Debug.Log($"[Phase] {ActivePlayer.name} → {phase}");
 
-        if (phase == GamePhase.Prep)
+        if (phase == GamePhase.Draw)
         {
             ActivePlayer.DrawCard();
             ActivePlayer.ResetStamina();
+            BeginPhase(GamePhase.Main1);
         }
     }
 
-    private void SwitchTurn()
+    public void GoToCombat()
+    {
+        if (CurrentPhase == GamePhase.Main1)
+        {
+            BeginPhase(GamePhase.Combat);
+        }
+    }
+
+    public void SwitchTurn()
     {
         SetActivePlayer(ActivePlayer == player1 ? player2 : player1);
-        BeginPhase(GamePhase.Prep);
+        BeginPhase(GamePhase.Draw);
     }
 
     public bool IsActivePlayer(Player player) => ActivePlayer == player;

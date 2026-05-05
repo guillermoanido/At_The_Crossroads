@@ -15,6 +15,11 @@ public class HandManager : MonoBehaviour
     // Enable for Player 2 so the fan arcs upward and rotations are mirrored.
     [SerializeField] private bool isFlipped = false;
 
+    // Whether cards in this hand are visible to the local viewer.
+    // Hot-seat: set true for local player, false for opponent.
+    // Networked (later): set this to (Owner == localClient).
+    [SerializeField] private bool showFaceUp = true;
+
     [SerializeField] private int maxHandSize = 10;
 
     public Player Owner { get; private set; }
@@ -33,7 +38,10 @@ public class HandManager : MonoBehaviour
         GameObject newCard = Instantiate(cardPrefab, handPosition.position, Quaternion.identity, handPosition);
         cardsInHand.Add(newCard);
 
-        newCard.GetComponent<CardDisplay>().cardData = cardData;
+        var display = newCard.GetComponent<CardDisplay>();
+        display.cardData = cardData;
+        display.SetFaceUp(showFaceUp);
+
         newCard.GetComponent<CardMovement>().Init(this);
 
         UpdateHandVisuals();
