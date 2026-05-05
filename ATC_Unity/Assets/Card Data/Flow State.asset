@@ -10,16 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 40b8a1e9e397e2d4eb0c781ad9e0f987, type: 3}
-  m_Name: Light Swing
+  m_Name: Flow State
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Light Swing
-  cardType: 2
-  speedType: 1
-  energyCost: 1
+  cardName: Flow State
+  cardType: 8
+  speedType: 0
+  energyCost: 0
   damageMin: 0
   damageMax: 0
-  strRequired: 5
+  strRequired: 0
   intRequired: 0
   wisRequired: 0
-  dexRequired: 0
-  effectDescription: STRIKE
+  dexRequired: 5
+  effectDescription: Your next card is cast at Reflex speed, Scry 1

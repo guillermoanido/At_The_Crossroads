@@ -10,16 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 40b8a1e9e397e2d4eb0c781ad9e0f987, type: 3}
-  m_Name: Light Swing
+  m_Name: Kite Shield
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Light Swing
-  cardType: 2
+  cardName: Kite Shield
+  cardType: 7
   speedType: 1
-  energyCost: 1
+  energyCost: 2
   damageMin: 0
   damageMax: 0
-  strRequired: 5
+  strRequired: 6
   intRequired: 0
   wisRequired: 0
   dexRequired: 0
-  effectDescription: STRIKE
+  effectDescription: Activate (Reflex) - Gain 2 Block
