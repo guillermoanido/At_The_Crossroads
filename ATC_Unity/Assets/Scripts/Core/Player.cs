@@ -4,6 +4,17 @@ public class Player : MonoBehaviour
 {
     public HandManager handManager;
     public DeckManager deckManager;
+    public PlayArea playArea;
+
+    [Header("Zones")]
+    public CardZone discardZone;
+    public CardZone weaponZone;
+    public CardZone armourZone;
+    public CardZone shieldZone;
+    public CardZone equipmentZone;
+    public CardZone accessoryZone;
+    public CardZone talentZone;
+    public CardZone auraZone;
 
     [SerializeField] private int maxStamina = 3;
 
@@ -26,11 +37,71 @@ public class Player : MonoBehaviour
         Stamina = maxStamina;
     }
 
-    // Returns false if the player doesn't have enough stamina.
     public bool SpendStamina(int amount)
     {
         if (Stamina < amount) return false;
         Stamina -= amount;
         return true;
+    }
+
+    public bool TryPlayCard(GameObject cardGO, Card cardData)
+    {
+        if (!CanPlay(cardData, out string reason))
+        {
+            Debug.Log($"[Play] {name} cannot play {cardData.cardName}: {reason}");
+            return false;
+        }
+
+        var zone = ZoneFor(cardData.cardType);
+        SpendStamina(cardData.energyCost);
+        handManager.RemoveCardFromHand(cardGO);
+        zone.AddCard(cardGO);
+
+        var movement = cardGO.GetComponent<CardMovement>();
+        if (movement != null) movement.enabled = false;
+        var drag = cardGO.GetComponent<DragUIObject>();
+        if (drag != null) drag.enabled = false;
+
+        Debug.Log($"[Play] {name} played {cardData.cardName} → {zone.name}");
+        return true;
+    }
+
+    private bool CanPlay(Card card, out string reason)
+    {
+        var phase = GameManager.Instance.CurrentPhase;
+        bool isMyTurn = GameManager.Instance.IsActivePlayer(this);
+
+        if (card.speedType == Card.SpeedType.Channel)
+        {
+            if (!isMyTurn) { reason = "Channel cards require your turn"; return false; }
+            if (phase != GameManager.GamePhase.Main1 && phase != GameManager.GamePhase.Main2)
+            { reason = $"Channel cards require Main1/Main2 (current: {phase})"; return false; }
+        }
+
+        if (Stamina < card.energyCost)
+        { reason = $"Not enough stamina ({Stamina}/{card.energyCost})"; return false; }
+
+        var zone = ZoneFor(card.cardType);
+        if (zone == null) { reason = $"No zone configured for {card.cardType}"; return false; }
+        if (zone.IsFull)  { reason = $"{zone.name} is full"; return false; }
+
+        reason = null;
+        return true;
+    }
+
+    private CardZone ZoneFor(Card.CardType type)
+    {
+        switch (type)
+        {
+            case Card.CardType.Weapon:    return weaponZone;
+            case Card.CardType.Armour:    return armourZone;
+            case Card.CardType.Shield:    return shieldZone;
+            case Card.CardType.Equipment: return equipmentZone;
+            case Card.CardType.Accesory:  return accessoryZone;
+            case Card.CardType.Talent:    return talentZone;
+            case Card.CardType.Aura:      return auraZone;
+            // Skill, Attack, Spell, Consumable, Condition → discard for now.
+            default: return discardZone;
+        }
     }
 }

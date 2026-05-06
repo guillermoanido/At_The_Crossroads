@@ -47,7 +47,7 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
             case CardState.Drag:
                 rectTransform.localRotation = Quaternion.identity;
                 if (!Mouse.current.leftButton.isPressed)
-                    ReturnToSlot();
+                    ResolveDrop();
                 break;
         }
     }
@@ -76,6 +76,29 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         State = CardState.Idle;
         glowEffect.SetActive(false);
         ApplySlot();
+    }
+
+    private void ResolveDrop()
+    {
+        var owner = handManager.Owner;
+        var playArea = owner != null ? owner.playArea : null;
+
+        if (playArea != null)
+        {
+            var screenPos = Mouse.current.position.ReadValue();
+            if (playArea.ContainsScreenPoint(screenPos, pressCamera))
+            {
+                var card = GetComponent<CardDisplay>().cardData;
+                if (owner.TryPlayCard(gameObject, card))
+                {
+                    State = CardState.Idle;
+                    glowEffect.SetActive(false);
+                    return;
+                }
+            }
+        }
+
+        ReturnToSlot();
     }
 
     public void OnPointerEnter(PointerEventData eventData)
