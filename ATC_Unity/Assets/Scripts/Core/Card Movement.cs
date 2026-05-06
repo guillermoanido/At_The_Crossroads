@@ -81,21 +81,33 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     private void ResolveDrop()
     {
         var owner = handManager.Owner;
-        var playArea = owner != null ? owner.playArea : null;
-
-        if (playArea != null)
+        if (owner == null)
         {
-            var screenPos = Mouse.current.position.ReadValue();
-            if (playArea.ContainsScreenPoint(screenPos, pressCamera))
-            {
-                var card = GetComponent<CardDisplay>().cardData;
-                if (owner.TryPlayCard(gameObject, card))
-                {
-                    State = CardState.Idle;
-                    glowEffect.SetActive(false);
-                    return;
-                }
-            }
+            Debug.LogWarning("[Drop] Card has no owner — HandManager.Owner not set.");
+            ReturnToSlot();
+            return;
+        }
+        if (owner.playArea == null)
+        {
+            Debug.LogWarning($"[Drop] {owner.name} has no PlayArea assigned in the Inspector.");
+            ReturnToSlot();
+            return;
+        }
+
+        var screenPos = Mouse.current.position.ReadValue();
+        if (!owner.playArea.ContainsScreenPoint(screenPos, pressCamera))
+        {
+            Debug.Log("[Drop] Released outside PlayArea — returning to hand.");
+            ReturnToSlot();
+            return;
+        }
+
+        var card = GetComponent<CardDisplay>().cardData;
+        if (owner.TryPlayCard(gameObject, card))
+        {
+            State = CardState.Idle;
+            glowEffect.SetActive(false);
+            return;
         }
 
         ReturnToSlot();
