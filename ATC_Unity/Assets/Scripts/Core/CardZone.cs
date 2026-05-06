@@ -23,9 +23,10 @@ public class CardZone : MonoBehaviour
     {
         var parent = anchor != null ? anchor : transform;
         card.transform.SetParent(parent, false);
+        float scale = GameManager.Instance != null ? GameManager.Instance.ZoneCardScale : 1f;
         card.transform.localPosition = (Vector3)(stackOffset * Cards.Count);
         card.transform.localRotation = Quaternion.identity;
-        card.transform.localScale = Vector3.one;
+        card.transform.localScale = Vector3.one * scale;
         Cards.Add(card);
     }
 

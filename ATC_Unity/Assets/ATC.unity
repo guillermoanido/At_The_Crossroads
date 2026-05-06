@@ -1007,6 +1007,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   player1: {fileID: 1812121544}
   player2: {fileID: 398138182}
+  zoneCardScale: 0.8
 --- !u!4 &668205596
 Transform:
   m_ObjectHideFlags: 0
@@ -1724,6 +1725,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 6368990022605741623, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+    - {fileID: 4708917931317418131, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []

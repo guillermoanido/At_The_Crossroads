@@ -420,6 +420,7 @@ GameObject:
   - component: {fileID: -6940137402872627807}
   - component: {fileID: 4679646013124996314}
   - component: {fileID: 6368990022605741623}
+  - component: {fileID: 4708917931317418131}
   m_Layer: 0
   m_Name: CardPrefab
   m_TagString: Untagged
@@ -529,6 +530,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CardMovement
   selectScale: 1.1
   glowEffect: {fileID: 2672906429611623316}
+--- !u!114 &4708917931317418131
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3209648541388789147}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b770ea1ea27908641ba7912a01177b72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CardPreviewTrigger
 --- !u!1 &4405700288174397769
 GameObject:
   m_ObjectHideFlags: 0

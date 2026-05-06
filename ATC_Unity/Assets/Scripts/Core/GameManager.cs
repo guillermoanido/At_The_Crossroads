@@ -9,6 +9,13 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Player player1;
     [SerializeField] private Player player2;
 
+    [Header("Card Display")]
+    [Tooltip("Visual scale applied to cards entering any zone (Discard, Weapon, Shield, etc.).")]
+    [Range(0.1f, 1.5f)]
+    [SerializeField] private float zoneCardScale = 1f;
+
+    public float ZoneCardScale => zoneCardScale;
+
     public Player ActivePlayer { get; private set; }
     public GamePhase CurrentPhase { get; private set; }
 

@@ -75,7 +75,6 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     {
         State = CardState.Idle;
         glowEffect.SetActive(false);
-        HidePreview();
         ApplySlot();
     }
 
@@ -108,7 +107,6 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         {
             State = CardState.Idle;
             glowEffect.SetActive(false);
-            HidePreview();
             return;
         }
 
@@ -118,10 +116,7 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (State == CardState.Idle && GameManager.Instance.IsActivePlayer(handManager.Owner))
-        {
             State = CardState.Hover;
-            ShowPreview();
-        }
     }
 
     public void OnPointerExit(PointerEventData eventData)
@@ -135,23 +130,10 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         if (State != CardState.Hover) return;
 
         State = CardState.Drag;
-        HidePreview();
         pressCamera = eventData.pressEventCamera;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
             canvasRect, eventData.position, pressCamera, out dragPointerOrigin);
         dragCardOrigin = rectTransform.localPosition;
-    }
-
-    private void ShowPreview()
-    {
-        if (CardPreview.Instance == null) return;
-        var display = GetComponent<CardDisplay>();
-        if (display != null && display.IsFaceUp) CardPreview.Instance.Show(display.cardData);
-    }
-
-    private void HidePreview()
-    {
-        if (CardPreview.Instance != null) CardPreview.Instance.Hide();
     }
 
     public void OnDrag(PointerEventData eventData)
