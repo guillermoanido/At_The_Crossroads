@@ -12,6 +12,9 @@ public class CardZone : MonoBehaviour
     [Tooltip("Where cards are parented when placed in this zone. Defaults to this transform.")]
     [SerializeField] private Transform anchor;
 
+    [Tooltip("Per-card offset for stacking. Set (0,0) for true overlap, e.g. (3,-3) for a visible diagonal stack like a discard pile.")]
+    [SerializeField] private Vector2 stackOffset = Vector2.zero;
+
     public List<GameObject> Cards { get; } = new List<GameObject>();
 
     public bool IsFull => maxSlots > 0 && Cards.Count >= maxSlots;
@@ -20,7 +23,7 @@ public class CardZone : MonoBehaviour
     {
         var parent = anchor != null ? anchor : transform;
         card.transform.SetParent(parent, false);
-        card.transform.localPosition = Vector3.zero;
+        card.transform.localPosition = (Vector3)(stackOffset * Cards.Count);
         card.transform.localRotation = Quaternion.identity;
         card.transform.localScale = Vector3.one;
         Cards.Add(card);

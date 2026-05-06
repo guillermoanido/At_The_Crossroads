@@ -12,6 +12,12 @@ public class HandManager : MonoBehaviour
     public float cardSpacing = 100f;
     public float verticalSpacing = 10f;
 
+    [Header("Sizing")]
+    [Tooltip("Visual scale of cards in this hand. 1 = prefab size.")]
+    [Range(0.2f, 1.5f)] public float cardScale = 1f;
+    [Tooltip("Total horizontal space the fan may occupy. When the fan would exceed this, spacing shrinks so cards overlap instead of running off-screen.")]
+    public float maxHandWidth = 800f;
+
     // Enable for Player 2 so the fan arcs upward and rotations are mirrored.
     [SerializeField] private bool isFlipped = false;
 
@@ -59,24 +65,31 @@ public class HandManager : MonoBehaviour
         if (cardCount == 0) return;
 
         float flip = isFlipped ? -1f : 1f;
+        Vector3 scale = Vector3.one * cardScale;
 
         if (cardCount == 1)
         {
-            cardsInHand[0].GetComponent<CardMovement>().SetSlot(Vector3.zero, Quaternion.identity, Vector3.one);
+            cardsInHand[0].GetComponent<CardMovement>().SetSlot(Vector3.zero, Quaternion.identity, scale);
             return;
         }
+
+        // Shrink spacing when the fan would exceed maxHandWidth so cards overlap instead of running off-screen.
+        float effectiveSpacing = cardSpacing;
+        float totalWidth = (cardCount - 1) * cardSpacing;
+        if (totalWidth > maxHandWidth)
+            effectiveSpacing = maxHandWidth / (cardCount - 1);
 
         for (int i = 0; i < cardCount; i++)
         {
             float rotationAngle = flip * fanSpread * (i - (cardCount - 1) / 2f);
             Quaternion rotation = Quaternion.Euler(0f, 0f, rotationAngle);
 
-            float horizontalOffset = cardSpacing * (i - (cardCount - 1) / 2f);
+            float horizontalOffset = effectiveSpacing * (i - (cardCount - 1) / 2f);
             float normalizedPosition = 2f * i / (cardCount - 1) - 1f;
             float verticalOffset = flip * verticalSpacing * (1 - normalizedPosition * normalizedPosition);
 
             Vector3 position = new Vector3(horizontalOffset, verticalOffset, 0f);
-            cardsInHand[i].GetComponent<CardMovement>().SetSlot(position, rotation, Vector3.one);
+            cardsInHand[i].GetComponent<CardMovement>().SetSlot(position, rotation, scale);
         }
     }
 }
