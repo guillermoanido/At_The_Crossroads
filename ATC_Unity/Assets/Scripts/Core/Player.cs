@@ -15,9 +15,14 @@ public class Player : MonoBehaviour
     public CardZone accessoryZone;
     public CardZone talentZone;
     public CardZone auraZone;
+    public CardZone exileZone;
 
+    [Header("Stats")]
+    [SerializeField] private int maxHp = 30;
     [SerializeField] private int maxStamina = 3;
 
+    public int CurrentHp { get; private set; }
+    public int MaxHp => maxHp;
     public int Stamina { get; private set; }
     public int MaxStamina => maxStamina;
 
@@ -25,6 +30,83 @@ public class Player : MonoBehaviour
     {
         handManager.SetOwner(this);
         Stamina = maxStamina;
+        CurrentHp = maxHp;
+    }
+
+    public void AdjustHp(int delta)
+    {
+        CurrentHp = Mathf.Clamp(CurrentHp + delta, 0, maxHp);
+    }
+
+    public void AdjustStamina(int delta)
+    {
+        Stamina = Mathf.Max(0, Stamina + delta);
+    }
+
+    public void SendToDiscard(GameObject cardGO) => MoveCardToZone(cardGO, discardZone);
+    public void SendToExile(GameObject cardGO) => MoveCardToZone(cardGO, exileZone);
+
+    // Pulls a card out of any zone (or hand) and re-instantiates it into the hand
+    // via the normal AddCardToHand flow. The original GameObject is destroyed so we
+    // don't have to reset CardMovement state, drag handlers, etc.
+    public void ReturnToHand(GameObject cardGO)
+    {
+        if (cardGO == null) return;
+        var data = cardGO.GetComponent<CardDisplay>()?.cardData;
+        if (data == null) return;
+
+        if (handManager.cardsInHand.Contains(cardGO)) return; // already in hand
+
+        foreach (var zone in AllZones())
+            if (zone != null && zone.Cards.Contains(cardGO))
+            {
+                zone.RemoveCard(cardGO);
+                break;
+            }
+
+        Destroy(cardGO);
+        handManager.AddCardToHand(data);
+    }
+
+    public void MoveCardToZone(GameObject cardGO, CardZone destination)
+    {
+        if (destination == null || cardGO == null) return;
+
+        if (handManager.cardsInHand.Contains(cardGO))
+        {
+            handManager.RemoveCardFromHand(cardGO);
+        }
+        else
+        {
+            foreach (var zone in AllZones())
+            {
+                if (zone != null && zone.Cards.Contains(cardGO))
+                {
+                    zone.RemoveCard(cardGO);
+                    break;
+                }
+            }
+        }
+
+        destination.AddCard(cardGO);
+
+        var movement = cardGO.GetComponent<CardMovement>();
+        if (movement != null) movement.enabled = false;
+        var drag = cardGO.GetComponent<DragUIObject>();
+        if (drag != null) drag.enabled = false;
+    }
+
+    private System.Collections.Generic.IEnumerable<CardZone> AllZones()
+    {
+        yield return weaponZone;
+        yield return armourZone;
+        yield return shieldZone;
+        yield return equipmentZone;
+        yield return accessoryZone;
+        yield return talentZone;
+        yield return auraZone;
+        yield return discardZone;
+        yield return exileZone;
     }
 
     public void DrawCard()

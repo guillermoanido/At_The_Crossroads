@@ -21,6 +21,7 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     private Vector3 slotScale;
 
     public CardState State { get; private set; } = CardState.Idle;
+    public Player Owner => handManager != null ? handManager.Owner : null;
 
     void Awake()
     {

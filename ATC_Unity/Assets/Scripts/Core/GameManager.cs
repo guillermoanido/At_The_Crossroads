@@ -75,6 +75,13 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // Skip the turn flip — same player draws, refreshes stamina, and proceeds again.
+    public void TakeExtraTurn()
+    {
+        Debug.Log($"[Phase] {ActivePlayer.name} takes an extra turn!");
+        BeginPhase(GamePhase.Draw);
+    }
+
     public void SwitchTurn()
     {
         SetActivePlayer(ActivePlayer == player1 ? player2 : player1);
