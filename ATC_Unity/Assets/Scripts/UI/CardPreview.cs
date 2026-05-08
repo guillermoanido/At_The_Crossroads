@@ -1,8 +1,6 @@
 using UnityEngine;
 
-// MTG-Arena style preview: a single fixed-position card clone on the canvas
-// that mirrors whatever card is currently being hovered. Place one of these
-// in the scene and assign its display.
+
 public class CardPreview : MonoBehaviour
 {
     public static CardPreview Instance { get; private set; }
