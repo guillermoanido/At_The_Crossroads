@@ -1305,6 +1305,7 @@ MonoBehaviour:
   player1: {fileID: 1812121544}
   player2: {fileID: 398138182}
   zoneCardScale: 0.8
+  startingHandSize: 5
 --- !u!4 &668205596
 Transform:
   m_ObjectHideFlags: 0
@@ -2222,6 +2223,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4e506f1afd7ec4e41a3f68a62c45dcc3, type: 2}
   - {fileID: 11400000, guid: 069a5351feda4a240a61065660be05f8, type: 2}
   - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
   loadFromResources: 1
 --- !u!1 &1203678266
 GameObject:
@@ -2691,6 +2697,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
   - {fileID: 11400000, guid: 3d955019c7c3e404290d9eacd184f720, type: 2}
   - {fileID: 11400000, guid: fa6407fd0b2207e4f89901006fe511f3, type: 2}
+  - {fileID: 11400000, guid: 4e506f1afd7ec4e41a3f68a62c45dcc3, type: 2}
+  - {fileID: 11400000, guid: 3d955019c7c3e404290d9eacd184f720, type: 2}
+  - {fileID: 11400000, guid: 3d955019c7c3e404290d9eacd184f720, type: 2}
+  - {fileID: 11400000, guid: 4e506f1afd7ec4e41a3f68a62c45dcc3, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
   loadFromResources: 1
 --- !u!1001 &1562802856
 PrefabInstance:

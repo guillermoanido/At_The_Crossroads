@@ -1,9 +1,7 @@
 using UnityEngine;
-using System.Collections.Generic;
-
 
 [CreateAssetMenu(fileName = "New Card", menuName = "Card")]
-public class Card : ScriptableObject 
+public class Card : ScriptableObject
 {
     public string cardName;
     public CardType cardType;
@@ -42,5 +40,4 @@ public class Card : ScriptableObject
         Reflex,
         Channel
     }
-
 }

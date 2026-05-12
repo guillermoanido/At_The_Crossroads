@@ -1,22 +1,30 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-// Attach to the card prefab. Fires the big preview on hover for ANY face-up card —
-// hand or played — independent of CardMovement (which gets disabled after play).
 [RequireComponent(typeof(CardDisplay))]
 public class CardPreviewTrigger : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     private CardDisplay display;
 
-    private void Awake()
-    {
-        display = GetComponent<CardDisplay>();
-    }
+    private void Awake() => display = GetComponent<CardDisplay>();
 
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (CardPreview.Instance == null || display == null || !display.IsFaceUp) return;
+        if (!IsViewableByActivePlayer()) return;
         CardPreview.Instance.Show(display.cardData);
+    }
+
+    private bool IsViewableByActivePlayer()
+    {
+        var movement = GetComponent<CardMovement>();
+        var owner = movement != null ? movement.Owner : null;
+        if (owner == null) return true;
+
+        bool isInOwnersHand = owner.handManager.cardsInHand.Contains(gameObject);
+        if (isInOwnersHand) return GameManager.Instance.IsActivePlayer(owner);
+
+        return true;
     }
 
     public void OnPointerExit(PointerEventData eventData)

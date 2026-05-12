@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Player : MonoBehaviour
@@ -33,37 +34,34 @@ public class Player : MonoBehaviour
         CurrentHp = maxHp;
     }
 
-    public void AdjustHp(int delta)
-    {
-        CurrentHp = Mathf.Clamp(CurrentHp + delta, 0, maxHp);
-    }
+    public void DrawCard() => deckManager.DrawCard(handManager);
 
-    public void AdjustStamina(int delta)
+    public void ResetStamina() => Stamina = maxStamina;
+
+    public void AdjustHp(int delta) => CurrentHp = Mathf.Clamp(CurrentHp + delta, 0, maxHp);
+
+    public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
+
+    public bool SpendStamina(int amount)
     {
-        Stamina = Mathf.Max(0, Stamina + delta);
+        if (Stamina < amount) return false;
+        Stamina -= amount;
+        return true;
     }
 
     public void SendToDiscard(GameObject cardGO) => MoveCardToZone(cardGO, discardZone);
+
     public void SendToExile(GameObject cardGO) => MoveCardToZone(cardGO, exileZone);
 
-    // Pulls a card out of any zone (or hand) and re-instantiates it into the hand
-    // via the normal AddCardToHand flow. The original GameObject is destroyed so we
-    // don't have to reset CardMovement state, drag handlers, etc.
     public void ReturnToHand(GameObject cardGO)
     {
         if (cardGO == null) return;
+        if (handManager.cardsInHand.Contains(cardGO)) return;
+
         var data = cardGO.GetComponent<CardDisplay>()?.cardData;
         if (data == null) return;
 
-        if (handManager.cardsInHand.Contains(cardGO)) return; // already in hand
-
-        foreach (var zone in AllZones())
-            if (zone != null && zone.Cards.Contains(cardGO))
-            {
-                zone.RemoveCard(cardGO);
-                break;
-            }
-
+        RemoveFromAnyZone(cardGO);
         Destroy(cardGO);
         handManager.AddCardToHand(data);
     }
@@ -73,57 +71,13 @@ public class Player : MonoBehaviour
         if (destination == null || cardGO == null) return;
 
         if (handManager.cardsInHand.Contains(cardGO))
-        {
             handManager.RemoveCardFromHand(cardGO);
-        }
         else
-        {
-            foreach (var zone in AllZones())
-            {
-                if (zone != null && zone.Cards.Contains(cardGO))
-                {
-                    zone.RemoveCard(cardGO);
-                    break;
-                }
-            }
-        }
+            RemoveFromAnyZone(cardGO);
 
         destination.AddCard(cardGO);
-
-        var movement = cardGO.GetComponent<CardMovement>();
-        if (movement != null) movement.enabled = false;
-        var drag = cardGO.GetComponent<DragUIObject>();
-        if (drag != null) drag.enabled = false;
-    }
-
-    private System.Collections.Generic.IEnumerable<CardZone> AllZones()
-    {
-        yield return weaponZone;
-        yield return armourZone;
-        yield return shieldZone;
-        yield return equipmentZone;
-        yield return accessoryZone;
-        yield return talentZone;
-        yield return auraZone;
-        yield return discardZone;
-        yield return exileZone;
-    }
-
-    public void DrawCard()
-    {
-        deckManager.DrawCard(handManager);
-    }
-
-    public void ResetStamina()
-    {
-        Stamina = maxStamina;
-    }
-
-    public bool SpendStamina(int amount)
-    {
-        if (Stamina < amount) return false;
-        Stamina -= amount;
-        return true;
+        FreezeCardInteractions(cardGO);
+        SyncBoardActionsForZone(cardGO, destination);
     }
 
     public bool TryPlayCard(GameObject cardGO, Card cardData)
@@ -138,11 +92,8 @@ public class Player : MonoBehaviour
         SpendStamina(cardData.energyCost);
         handManager.RemoveCardFromHand(cardGO);
         zone.AddCard(cardGO);
-
-        var movement = cardGO.GetComponent<CardMovement>();
-        if (movement != null) movement.enabled = false;
-        var drag = cardGO.GetComponent<DragUIObject>();
-        if (drag != null) drag.enabled = false;
+        FreezeCardInteractions(cardGO);
+        SyncBoardActionsForZone(cardGO, zone);
 
         Debug.Log($"[Play] {name} played {cardData.cardName} → {zone.name}");
         return true;
@@ -150,24 +101,39 @@ public class Player : MonoBehaviour
 
     private bool CanPlay(Card card, out string reason)
     {
-        var phase = GameManager.Instance.CurrentPhase;
-        bool isMyTurn = GameManager.Instance.IsActivePlayer(this);
-
-        if (card.speedType == Card.SpeedType.Channel)
-        {
-            if (!isMyTurn) { reason = "Channel cards require your turn"; return false; }
-            if (phase != GameManager.GamePhase.Main1 && phase != GameManager.GamePhase.Main2)
-            { reason = $"Channel cards require Main1/Main2 (current: {phase})"; return false; }
-        }
+        if (!SpeedAllowedThisPhase(card.speedType, out reason)) return false;
 
         if (Stamina < card.energyCost)
-        { reason = $"Not enough stamina ({Stamina}/{card.energyCost})"; return false; }
+        {
+            reason = $"Not enough stamina ({Stamina}/{card.energyCost})";
+            return false;
+        }
 
         var zone = ZoneFor(card.cardType);
         if (zone == null) { reason = $"No zone configured for {card.cardType}"; return false; }
         if (zone.IsFull)  { reason = $"{zone.name} is full"; return false; }
 
         reason = null;
+        return true;
+    }
+
+    private bool SpeedAllowedThisPhase(Card.SpeedType speed, out string reason)
+    {
+        reason = null;
+        if (speed != Card.SpeedType.Channel) return true;
+
+        if (!GameManager.Instance.IsActivePlayer(this))
+        {
+            reason = "Channel cards require your turn";
+            return false;
+        }
+
+        var phase = GameManager.Instance.CurrentPhase;
+        if (phase != GameManager.GamePhase.Main1 && phase != GameManager.GamePhase.Main2)
+        {
+            reason = $"Channel cards require Main1/Main2 (current: {phase})";
+            return false;
+        }
         return true;
     }
 
@@ -182,8 +148,47 @@ public class Player : MonoBehaviour
             case Card.CardType.Accesory:  return accessoryZone;
             case Card.CardType.Talent:    return talentZone;
             case Card.CardType.Aura:      return auraZone;
-            // Skill, Attack, Spell, Consumable, Condition → discard for now.
-            default: return discardZone;
+            default:                      return discardZone;
         }
+    }
+
+    private void RemoveFromAnyZone(GameObject cardGO)
+    {
+        foreach (var zone in AllZones())
+        {
+            if (zone != null && zone.Cards.Contains(cardGO))
+            {
+                zone.RemoveCard(cardGO);
+                return;
+            }
+        }
+    }
+
+    private static void FreezeCardInteractions(GameObject cardGO)
+    {
+        var movement = cardGO.GetComponent<CardMovement>();
+        if (movement != null) movement.enabled = false;
+        var drag = cardGO.GetComponent<DragUIObject>();
+        if (drag != null) drag.enabled = false;
+    }
+
+    private void SyncBoardActionsForZone(GameObject cardGO, CardZone destination)
+    {
+        var actions = cardGO.GetComponent<CardBoardActions>();
+        if (actions == null) return;
+        actions.enabled = destination != discardZone && destination != exileZone;
+    }
+
+    private IEnumerable<CardZone> AllZones()
+    {
+        yield return weaponZone;
+        yield return armourZone;
+        yield return shieldZone;
+        yield return equipmentZone;
+        yield return accessoryZone;
+        yield return talentZone;
+        yield return auraZone;
+        yield return discardZone;
+        yield return exileZone;
     }
 }

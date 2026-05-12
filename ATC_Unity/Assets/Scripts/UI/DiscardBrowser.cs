@@ -1,10 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
-// Singleton popup. Open(zone) instantiates a clone of every card in the zone
-// (most-recent first) into listContainer. Set up listContainer with whatever
-// Layout Group you prefer (Grid or Horizontal). Use the Close button to dismiss.
 public class DiscardBrowser : MonoBehaviour
 {
     public static DiscardBrowser Instance { get; private set; }
@@ -12,10 +10,17 @@ public class DiscardBrowser : MonoBehaviour
     [SerializeField] private GameObject root;
     [SerializeField] private Transform listContainer;
     [SerializeField] private GameObject cardPrefab;
+
     [Range(0.2f, 1.5f)]
-    [SerializeField] private float cardScale = 0.6f;
+    [SerializeField] private float cardScale = 1f;
+
+    [Header("Grid (applied to a GridLayoutGroup on List Container if present)")]
+    [SerializeField] private Vector2 cellSize = new Vector2(180f, 252f);
+    [SerializeField] private Vector2 spacing = new Vector2(10f, 10f);
 
     private readonly List<GameObject> spawned = new List<GameObject>();
+    private CardZone currentZone;
+    private int lastCardCount = -1;
 
     private void Awake()
     {
@@ -23,40 +28,22 @@ public class DiscardBrowser : MonoBehaviour
         Close();
     }
 
+    private void Update()
+    {
+        if (currentZone == null) return;
+
+        ConfigureGridLayoutIfPresent();
+        ApplyCardScaleToSpawned();
+
+        if (currentZone.Cards.Count != lastCardCount) Rebuild();
+    }
+
     public void Open(CardZone zone)
     {
-        Clear();
-
-        for (int i = zone.Cards.Count - 1; i >= 0; i--)
-        {
-            var src = zone.Cards[i];
-            if (src == null) continue;
-            var srcDisplay = src.GetComponent<CardDisplay>();
-            if (srcDisplay == null || srcDisplay.cardData == null) continue;
-
-            var clone = Instantiate(cardPrefab, listContainer);
-            clone.transform.localScale = Vector3.one * cardScale;
-
-            var display = clone.GetComponent<CardDisplay>();
-            if (display != null)
-            {
-                display.cardData = srcDisplay.cardData;
-                display.SetFaceUp(true);
-            }
-
-            // Disable interactions on browse-only clones.
-            var move = clone.GetComponent<CardMovement>(); if (move != null) move.enabled = false;
-            var drag = clone.GetComponent<DragUIObject>(); if (drag != null) drag.enabled = false;
-            var actions = clone.GetComponent<CardBoardActions>(); if (actions != null) actions.enabled = false;
-            // CardPreviewTrigger stays enabled so hovering a list entry still pops the big preview.
-
-            // Right-click an entry to return its source card to hand.
-            var entry = clone.AddComponent<DiscardBrowserEntry>();
-            entry.Init(this, zone, src);
-
-            spawned.Add(clone);
-        }
-
+        currentZone = zone;
+        lastCardCount = -1;
+        ConfigureGridLayoutIfPresent();
+        Rebuild();
         if (root != null) root.SetActive(true);
     }
 
@@ -64,6 +51,75 @@ public class DiscardBrowser : MonoBehaviour
     {
         Clear();
         if (root != null) root.SetActive(false);
+        currentZone = null;
+        lastCardCount = -1;
+    }
+
+    private void Rebuild()
+    {
+        Clear();
+        if (currentZone != null)
+        {
+            SpawnEntriesNewestFirst(currentZone);
+            lastCardCount = currentZone.Cards.Count;
+        }
+    }
+
+    private void ConfigureGridLayoutIfPresent()
+    {
+        if (listContainer == null) return;
+        var grid = listContainer.GetComponent<GridLayoutGroup>();
+        if (grid == null) return;
+        grid.cellSize = cellSize;
+        grid.spacing = spacing;
+    }
+
+    private void ApplyCardScaleToSpawned()
+    {
+        Vector3 target = Vector3.one * cardScale;
+        foreach (var go in spawned)
+        {
+            if (go == null) continue;
+            if (go.transform.localScale != target) go.transform.localScale = target;
+        }
+    }
+
+    private void SpawnEntriesNewestFirst(CardZone zone)
+    {
+        for (int i = zone.Cards.Count - 1; i >= 0; i--)
+        {
+            var source = zone.Cards[i];
+            if (source == null) continue;
+            var sourceDisplay = source.GetComponent<CardDisplay>();
+            if (sourceDisplay == null || sourceDisplay.cardData == null) continue;
+
+            var entry = SpawnEntry(sourceDisplay.cardData);
+            entry.AddComponent<DiscardBrowserEntry>().Init(this, zone, source);
+            spawned.Add(entry);
+        }
+    }
+
+    private GameObject SpawnEntry(Card data)
+    {
+        var clone = Instantiate(cardPrefab, listContainer);
+        clone.transform.localScale = Vector3.one * cardScale;
+
+        var display = clone.GetComponent<CardDisplay>();
+        if (display != null)
+        {
+            display.cardData = data;
+            display.SetFaceUp(true);
+        }
+
+        DisableGameplayInteractions(clone);
+        return clone;
+    }
+
+    private static void DisableGameplayInteractions(GameObject clone)
+    {
+        var move = clone.GetComponent<CardMovement>();   if (move != null) move.enabled = false;
+        var drag = clone.GetComponent<DragUIObject>();   if (drag != null) drag.enabled = false;
+        var actions = clone.GetComponent<CardBoardActions>(); if (actions != null) actions.enabled = false;
     }
 
     private void Clear()
@@ -74,18 +130,17 @@ public class DiscardBrowser : MonoBehaviour
     }
 }
 
-// Component added to each browser entry. Right-click → return source card to hand.
 public class DiscardBrowserEntry : MonoBehaviour, IPointerClickHandler
 {
     private DiscardBrowser browser;
     private CardZone source;
     private GameObject sourceCard;
 
-    public void Init(DiscardBrowser b, CardZone z, GameObject src)
+    public void Init(DiscardBrowser owningBrowser, CardZone sourceZone, GameObject originalCard)
     {
-        browser = b;
-        source = z;
-        sourceCard = src;
+        browser = owningBrowser;
+        source = sourceZone;
+        sourceCard = originalCard;
     }
 
     public void OnPointerClick(PointerEventData eventData)

@@ -23,46 +23,50 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     public CardState State { get; private set; } = CardState.Idle;
     public Player Owner => handManager != null ? handManager.Owner : null;
 
-    void Awake()
+    private void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
         canvasRect = GetComponentInParent<Canvas>().GetComponent<RectTransform>();
         slotScale = rectTransform.localScale;
     }
 
-    public void Init(HandManager hm)
+    public void Init(HandManager hand)
     {
-        handManager = hm;
+        handManager = hand;
     }
 
-    void Update()
-    {
-        switch (State)
-        {
-            case CardState.Hover:
-                glowEffect.SetActive(true);
-                rectTransform.localScale = slotScale * selectScale;
-                rectTransform.localRotation = Quaternion.Lerp(rectTransform.localRotation, Quaternion.identity, Time.deltaTime * 10f);
-                break;
-
-            case CardState.Drag:
-                rectTransform.localRotation = Quaternion.identity;
-                if (!Mouse.current.leftButton.isPressed)
-                    ResolveDrop();
-                break;
-        }
-    }
-
-    // Called by HandManager whenever it recalculates the fan layout.
-    // Applies immediately only when the card is idle; otherwise just stores the slot
-    // so ReturnToSlot() can snap back to the right position after a drag.
     public void SetSlot(Vector3 position, Quaternion rotation, Vector3 scale)
     {
         slotPosition = position;
         slotRotation = rotation;
         slotScale = scale;
-        if (State == CardState.Idle)
-            ApplySlot();
+        if (State == CardState.Idle) ApplySlot();
+    }
+
+    private void Update()
+    {
+        switch (State)
+        {
+            case CardState.Hover:
+                TickHover();
+                break;
+            case CardState.Drag:
+                TickDrag();
+                break;
+        }
+    }
+
+    private void TickHover()
+    {
+        glowEffect.SetActive(true);
+        rectTransform.localScale = slotScale * selectScale;
+        rectTransform.localRotation = Quaternion.Lerp(rectTransform.localRotation, Quaternion.identity, Time.deltaTime * 10f);
+    }
+
+    private void TickDrag()
+    {
+        rectTransform.localRotation = Quaternion.identity;
+        if (!Mouse.current.leftButton.isPressed) ResolveDrop();
     }
 
     private void ApplySlot()
@@ -81,28 +85,20 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
 
     private void ResolveDrop()
     {
+        if (!TryGetDropTarget(out PlayArea playArea))
+        {
+            ReturnToSlot();
+            return;
+        }
+
+        Vector2 pointer = Mouse.current.position.ReadValue();
+        if (!playArea.ContainsScreenPoint(pointer, pressCamera))
+        {
+            ReturnToSlot();
+            return;
+        }
+
         var owner = handManager.Owner;
-        if (owner == null)
-        {
-            Debug.LogWarning("[Drop] Card has no owner — HandManager.Owner not set.");
-            ReturnToSlot();
-            return;
-        }
-        if (owner.playArea == null)
-        {
-            Debug.LogWarning($"[Drop] {owner.name} has no PlayArea assigned in the Inspector.");
-            ReturnToSlot();
-            return;
-        }
-
-        var screenPos = Mouse.current.position.ReadValue();
-        if (!owner.playArea.ContainsScreenPoint(screenPos, pressCamera))
-        {
-            Debug.Log("[Drop] Released outside PlayArea — returning to hand.");
-            ReturnToSlot();
-            return;
-        }
-
         var card = GetComponent<CardDisplay>().cardData;
         if (owner.TryPlayCard(gameObject, card))
         {
@@ -114,6 +110,15 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         ReturnToSlot();
     }
 
+    private bool TryGetDropTarget(out PlayArea playArea)
+    {
+        playArea = null;
+        var owner = handManager.Owner;
+        if (owner == null) return false;
+        playArea = owner.playArea;
+        return playArea != null;
+    }
+
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (State == CardState.Idle && GameManager.Instance.IsActivePlayer(handManager.Owner))
@@ -122,8 +127,7 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
 
     public void OnPointerExit(PointerEventData eventData)
     {
-        if (State == CardState.Hover)
-            ReturnToSlot();
+        if (State == CardState.Hover) ReturnToSlot();
     }
 
     public void OnPointerDown(PointerEventData eventData)
@@ -142,9 +146,9 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         if (State != CardState.Drag) return;
 
         if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            canvasRect, eventData.position, pressCamera, out Vector2 localPos))
+            canvasRect, eventData.position, pressCamera, out Vector2 pointerLocal))
         {
-            rectTransform.localPosition = dragCardOrigin + (Vector3)(localPos - dragPointerOrigin);
+            rectTransform.localPosition = dragCardOrigin + (Vector3)(pointerLocal - dragPointerOrigin);
         }
     }
 }

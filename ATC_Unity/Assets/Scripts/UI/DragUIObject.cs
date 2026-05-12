@@ -1,38 +1,38 @@
 using UnityEngine;
-using UnityEngine.EventSystems; //This allows us to use Unity's event system to detect our mouse inputs
+using UnityEngine.EventSystems;
 
-public class DragUIObject : MonoBehaviour, IDragHandler, IPointerDownHandler //These classes hold the methods required to handle UI interactions that we need
+public class DragUIObject : MonoBehaviour, IDragHandler, IPointerDownHandler
 {
+    public float movementSensitivity = 1.0f;
+
     private RectTransform rectTransform;
     private Canvas canvas;
-    private Vector2 originalLocalPointerPosition;
-    private Vector3 originalPanelLocalPosition;
-    public float movementSensitivity = 1.0f; // Adjustable sensitivity if needed
+    private RectTransform canvasRect;
+    private Vector2 pointerStartLocal;
+    private Vector3 panelStartLocal;
 
-    void Awake()
+    private void Awake()
     {
-        rectTransform = GetComponent<RectTransform>(); //Get the RectTransform component of the attached GameObject
-        canvas = GetComponentInParent<Canvas>(); //Get the Canvas component of the attached GameObject
+        rectTransform = GetComponent<RectTransform>();
+        canvas = GetComponentInParent<Canvas>();
+        canvasRect = canvas.GetComponent<RectTransform>();
     }
 
-    public void OnPointerDown(PointerEventData eventData) //This is inherited from the IPointerDownHandler class referenced above
+    public void OnPointerDown(PointerEventData eventData)
     {
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas.GetComponent<RectTransform>(), eventData.position, eventData.pressEventCamera, out originalLocalPointerPosition); //Using the event system to detect what is clicked on
-        originalPanelLocalPosition = rectTransform.localPosition;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvasRect, eventData.position, eventData.pressEventCamera, out pointerStartLocal);
+        panelStartLocal = rectTransform.localPosition;
     }
 
-    public void OnDrag(PointerEventData eventData) //This is inherited from the IDragHandler class referenced above
+    public void OnDrag(PointerEventData eventData)
     {
-        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas.GetComponent<RectTransform>(), eventData.position, eventData.pressEventCamera, out Vector2 localPointerPosition))
-        {
-            localPointerPosition /= canvas.scaleFactor;
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvasRect, eventData.position, eventData.pressEventCamera, out Vector2 pointerLocal))
+            return;
 
-            // Adjusting the movement based on sensitivity
-            Vector3 offsetToOriginal = (localPointerPosition - originalLocalPointerPosition) * movementSensitivity;
-            rectTransform.localPosition = originalPanelLocalPosition + offsetToOriginal;
-
-            // Debug output
-            Debug.Log($"Drag - LocalPointerPosition: {localPointerPosition}, Offset: {offsetToOriginal}, New Position: {rectTransform.localPosition}"); //Comment out this line if not debugging an issue, otherwise it will flood the console unnecessarily
-        }
+        pointerLocal /= canvas.scaleFactor;
+        Vector3 offset = (pointerLocal - pointerStartLocal) * movementSensitivity;
+        rectTransform.localPosition = panelStartLocal + offset;
     }
 }
