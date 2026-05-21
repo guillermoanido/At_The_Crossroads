@@ -7,6 +7,11 @@ public class PlayerStatsUI : MonoBehaviour
     [SerializeField] private TMP_Text hpText;
     [SerializeField] private TMP_Text staminaText;
 
+    [Tooltip("Amount applied per +/- HP button press.")]
+    [SerializeField] private int hpAdjustStep = 1;
+    [Tooltip("Amount applied per +/- Stamina button press.")]
+    [SerializeField] private int staminaAdjustStep = 1;
+
     private void Update()
     {
         if (player == null) return;
@@ -14,8 +19,8 @@ public class PlayerStatsUI : MonoBehaviour
         if (staminaText != null) staminaText.text = $"STA {player.Stamina}/{player.MaxStamina}";
     }
 
-    public void HpUp()        { if (player != null) player.AdjustHp(+1); }
-    public void HpDown()      { if (player != null) player.AdjustHp(-1); }
-    public void StaminaUp()   { if (player != null) player.AdjustStamina(+1); }
-    public void StaminaDown() { if (player != null) player.AdjustStamina(-1); }
+    public void HpUp()        { if (player != null) player.AdjustHp(+hpAdjustStep); }
+    public void HpDown()      { if (player != null) player.AdjustHp(-hpAdjustStep); }
+    public void StaminaUp()   { if (player != null) player.AdjustStamina(+staminaAdjustStep); }
+    public void StaminaDown() { if (player != null) player.AdjustStamina(-staminaAdjustStep); }
 }

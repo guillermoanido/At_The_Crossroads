@@ -7,6 +7,8 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     public enum CardState { Idle, Hover, Drag }
 
     [SerializeField] private float selectScale = 1.1f;
+    [Tooltip("How fast the hovered card straightens out (higher = snappier).")]
+    [SerializeField] private float hoverRotationLerpSpeed = 10f;
     [SerializeField] private GameObject glowEffect;
 
     private RectTransform rectTransform;
@@ -60,7 +62,7 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     {
         glowEffect.SetActive(true);
         rectTransform.localScale = slotScale * selectScale;
-        rectTransform.localRotation = Quaternion.Lerp(rectTransform.localRotation, Quaternion.identity, Time.deltaTime * 10f);
+        rectTransform.localRotation = Quaternion.Lerp(rectTransform.localRotation, Quaternion.identity, Time.deltaTime * hoverRotationLerpSpeed);
     }
 
     private void TickDrag()
@@ -121,8 +123,16 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        if (State == CardState.Idle && GameManager.Instance.IsActivePlayer(handManager.Owner))
-            State = CardState.Hover;
+        if (State != CardState.Idle) return;
+        if (!OwnerCanInteractNow()) return;
+        State = CardState.Hover;
+    }
+
+    private bool OwnerCanInteractNow()
+    {
+        if (GameManager.Instance.IsActivePlayer(handManager.Owner)) return true;
+        var card = GetComponent<CardDisplay>().cardData;
+        return card != null && card.speedType == Card.SpeedType.Reflex;
     }
 
     public void OnPointerExit(PointerEventData eventData)

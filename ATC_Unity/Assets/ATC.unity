@@ -169,9 +169,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 0
   anchor: {fileID: 37798841}
   stackOffset: {x: 3, y: -3}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 1
   owner: {fileID: 1812121544}
 --- !u!114 &37798843
@@ -701,9 +704,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 0
   anchor: {fileID: 291945846}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 1812121544}
 --- !u!1 &378253753
@@ -863,9 +869,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 1
   anchor: {fileID: 414626036}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 1812121544}
 --- !u!1 &443739562
@@ -916,9 +925,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 1
   anchor: {fileID: 443739563}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 1812121544}
 --- !u!1 &487601274
@@ -977,7 +989,7 @@ MonoBehaviour:
   m_ChildAlignment: 0
   m_StartCorner: 0
   m_StartAxis: 0
-  m_CellSize: {x: 50, y: 50}
+  m_CellSize: {x: 10, y: 10}
   m_Spacing: {x: 65, y: 0}
   m_Constraint: 0
   m_ConstraintCount: 2
@@ -1029,9 +1041,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 0
   anchor: {fileID: 517005148}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 1812121544}
 --- !u!1 &551220182
@@ -1090,6 +1105,8 @@ MonoBehaviour:
   listContainer: {fileID: 763226008}
   cardPrefab: {fileID: 3209648541388789147, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
   cardScale: 0.2
+  cellSize: {x: 180, y: 252}
+  spacing: {x: 10, y: 10}
 --- !u!114 &551220185
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1173,9 +1190,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 0
   anchor: {fileID: 600059976}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 1812121544}
 --- !u!1 &645797794
@@ -1304,8 +1324,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   player1: {fileID: 1812121544}
   player2: {fileID: 398138182}
-  zoneCardScale: 0.8
-  startingHandSize: 5
+  startingHandSize: 4
+  handCardScale: 0.8
+  discardScale: 0.8
+  weaponScale: 0.5
+  shieldScale: 0.5
+  armourScale: 0.5
+  equipmentScale: 0.5
+  accessoryScale: 0.5
+  talentScale: 0.5
+  auraScale: 0.5
+  exileScale: 0.8
+  otherZoneScale: 0.5
 --- !u!4 &668205596
 Transform:
   m_ObjectHideFlags: 0
@@ -1314,12 +1344,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 668205594}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.60436, y: 1.53752, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 1.5794301, y: 6.1863, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1816896636}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &675883718
 GameObject:
@@ -1569,6 +1599,8 @@ MonoBehaviour:
   listContainer: {fileID: 487601275}
   cardPrefab: {fileID: 3209648541388789147, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
   cardScale: 0.2
+  cellSize: {x: 10, y: 10}
+  spacing: {x: 10, y: 10}
 --- !u!114 &777907400
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2166,9 +2198,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 1
   anchor: {fileID: 1017065217}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 1812121544}
 --- !u!1 &1124600396
@@ -2956,9 +2991,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 1
   anchor: {fileID: 1610578292}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 0}
 --- !u!1 &1664046857
@@ -3071,9 +3109,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 0
   anchor: {fileID: 1706761713}
   stackOffset: {x: 3, y: -3}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 1
   owner: {fileID: 1812121544}
 --- !u!114 &1706761715
@@ -3496,9 +3537,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b2a48fbfb4ff7643b2878c1657c2c08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardZone
+  kind: 0
   maxSlots: 0
   anchor: {fileID: 1767470736}
   stackOffset: {x: 0, y: 0}
+  maxLayoutWidth: 0
+  maxLayoutHeight: 0
   browseOnClick: 0
   owner: {fileID: 1812121544}
 --- !u!1 &1811197305
@@ -3771,6 +3815,7 @@ Transform:
   - {fileID: 1706935090}
   - {fileID: 1544209300}
   - {fileID: 1124600397}
+  - {fileID: 668205596}
   m_Father: {fileID: 2031098014}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2016076569
@@ -4715,7 +4760,6 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 2031098014}
-  - {fileID: 668205596}
   - {fileID: 1812121545}
   - {fileID: 398138183}
   - {fileID: 107212776}

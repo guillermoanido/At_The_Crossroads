@@ -17,7 +17,7 @@ public class DeckManager : MonoBehaviour
         if (allCards.Count == 0) Debug.LogWarning($"[Deck] {name} has 0 cards.");
     }
 
-    public void DealStartingHand(HandManager hand, int cardCount = 6)
+    public void DealStartingHand(HandManager hand, int cardCount)
     {
         for (int i = 0; i < cardCount; i++) DrawCard(hand);
     }
