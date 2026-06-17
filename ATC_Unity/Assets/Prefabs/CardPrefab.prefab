@@ -422,6 +422,8 @@ GameObject:
   - component: {fileID: 6368990022605741623}
   - component: {fileID: 4708917931317418131}
   - component: {fileID: 8868570741376095974}
+  - component: {fileID: 3732127952234977518}
+  - component: {fileID: 8091005311350751222}
   m_Layer: 0
   m_Name: CardPrefab
   m_TagString: Untagged
@@ -530,6 +532,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardMovement
   selectScale: 1.1
+  hoverRotationLerpSpeed: 10
   glowEffect: {fileID: 2672906429611623316}
 --- !u!114 &4708917931317418131
 MonoBehaviour:
@@ -555,6 +558,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8967b75a371c4b74f912f7a8259a9e52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardBoardActions
+--- !u!114 &3732127952234977518
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3209648541388789147}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02257d1fa165815448562780e993afdd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CardTapState
+  tappedZRotation: -90
+--- !u!114 &8091005311350751222
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3209648541388789147}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 01b4a61a47a27bc45821dd8636e33d49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Targetable
+  highlight: {fileID: 2672906429611623316}
 --- !u!1 &4405700288174397769
 GameObject:
   m_ObjectHideFlags: 0

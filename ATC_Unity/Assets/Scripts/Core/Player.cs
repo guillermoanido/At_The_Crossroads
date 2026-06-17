@@ -27,6 +27,8 @@ public class Player : MonoBehaviour
     public int Stamina { get; private set; }
     public int MaxStamina => maxStamina;
 
+    public Player Opponent => GameManager.Instance != null ? GameManager.Instance.Opponent(this) : null;
+
     private void Awake()
     {
         handManager.SetOwner(this);
@@ -37,6 +39,25 @@ public class Player : MonoBehaviour
     public void DrawCard() => deckManager.DrawCard(handManager);
 
     public void ResetStamina() => Stamina = maxStamina;
+
+    public void ResolveUpkeep() => FireTriggersOnBoard(Trigger.OnUpkeep, null);
+
+    public void TakeDamage(int amount, GameObject sourceCardGO = null, Card sourceCardData = null)
+    {
+        if (amount <= 0) return;
+
+        var dmg = new DamageEvent
+        {
+            defender = this,
+            amount = amount,
+            sourceCardGO = sourceCardGO,
+            sourceCardData = sourceCardData
+        };
+
+        FireTriggersOnBoard(Trigger.OnControllerTakeDamage, dmg);
+
+        if (dmg.amount > 0) AdjustHp(-dmg.amount);
+    }
 
     public void AdjustHp(int delta) => CurrentHp = Mathf.Clamp(CurrentHp + delta, 0, maxHp);
 
@@ -49,7 +70,11 @@ public class Player : MonoBehaviour
         return true;
     }
 
-    public void SendToDiscard(GameObject cardGO) => MoveCardToZone(cardGO, discardZone);
+    public void SendToDiscard(GameObject cardGO)
+    {
+        FireTriggersForDyingCard(cardGO, Trigger.OnDestroyed);
+        MoveCardToZone(cardGO, discardZone);
+    }
 
     public void SendToExile(GameObject cardGO) => MoveCardToZone(cardGO, exileZone);
 
@@ -96,7 +121,74 @@ public class Player : MonoBehaviour
         SyncBoardActionsForZone(cardGO, zone);
 
         Debug.Log($"[Play] {name} played {cardData.cardName} → {zone.name}");
+
+        if (cardData.onPlayEffects != null && cardData.onPlayEffects.Count > 0 && EffectRunner.Instance != null)
+            EffectRunner.Instance.RunSequence(cardData.onPlayEffects, MakeContext(cardGO, cardData));
+
         return true;
+    }
+
+    private EffectContext MakeContext(GameObject cardGO, Card cardData) => new EffectContext
+    {
+        sourceCardGO = cardGO,
+        sourceCardData = cardData,
+        controller = this,
+        opponent = Opponent
+    };
+
+    private void FireTriggersOnBoard(Trigger trigger, DamageEvent dmg)
+    {
+        foreach (var zone in BoardZones())
+        {
+            if (zone == null) continue;
+            var snapshot = new List<GameObject>(zone.Cards);
+            foreach (var cardGO in snapshot)
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                if (data == null || data.triggeredEffects == null) continue;
+                foreach (var te in data.triggeredEffects)
+                {
+                    if (te == null || te.trigger != trigger || te.effect == null) continue;
+                    var ctx = MakeContext(cardGO, data);
+                    ctx.damage = dmg;
+
+                    if (trigger == Trigger.OnControllerTakeDamage)
+                        te.effect.ResolveImmediate(ctx);
+                    else if (EffectRunner.Instance != null)
+                        EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
+                }
+            }
+        }
+    }
+
+    private void FireTriggersForDyingCard(GameObject cardGO, Trigger trigger)
+    {
+        if (cardGO == null) return;
+        var data = cardGO.GetComponent<CardDisplay>()?.cardData;
+        if (data == null || data.triggeredEffects == null) return;
+
+        var zone = cardGO.GetComponentInParent<CardZone>();
+        if (zone == null) return;
+        if (zone.Kind == CardZone.ZoneKind.Discard || zone.Kind == CardZone.ZoneKind.Exile) return;
+
+        var ctx = MakeContext(cardGO, data);
+        foreach (var te in data.triggeredEffects)
+        {
+            if (te == null || te.trigger != trigger || te.effect == null) continue;
+            if (EffectRunner.Instance != null)
+                EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
+        }
+    }
+
+    private IEnumerable<CardZone> BoardZones()
+    {
+        yield return weaponZone;
+        yield return armourZone;
+        yield return shieldZone;
+        yield return equipmentZone;
+        yield return accessoryZone;
+        yield return talentZone;
+        yield return auraZone;
     }
 
     private bool CanPlay(Card card, out string reason)

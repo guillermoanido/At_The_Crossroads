@@ -140,6 +140,13 @@ public class GameManager : MonoBehaviour
 
     public bool IsActivePlayer(Player player) => ActivePlayer == player;
 
+    public Player Opponent(Player player)
+    {
+        if (player == player1) return player2;
+        if (player == player2) return player1;
+        return null;
+    }
+
     private void BeginPhase(GamePhase phase)
     {
         CurrentPhase = phase;
@@ -150,9 +157,16 @@ public class GameManager : MonoBehaviour
 
     private void ResolveDrawPhase()
     {
+        ResolveUpkeep();
         ActivePlayer.DrawCard();
         ActivePlayer.ResetStamina();
         BeginPhase(GamePhase.Main1);
+    }
+
+    private void ResolveUpkeep()
+    {
+        Debug.Log($"[Phase] {ActivePlayer.name} → Upkeep");
+        ActivePlayer.ResolveUpkeep();
     }
 
     private void SetActivePlayer(Player player) => ActivePlayer = player;

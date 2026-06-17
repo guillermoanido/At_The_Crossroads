@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "New Card", menuName = "Card")]
@@ -18,6 +19,10 @@ public class Card : ScriptableObject
     public int dexRequired;
 
     public string effectDescription;
+
+    [Header("Effects")]
+    public List<CardEffect> onPlayEffects = new List<CardEffect>();
+    public List<TriggeredEffect> triggeredEffects = new List<TriggeredEffect>();
 
     public enum CardType
     {
