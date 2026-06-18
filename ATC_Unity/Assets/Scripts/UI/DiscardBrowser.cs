@@ -20,7 +20,8 @@ public class DiscardBrowser : MonoBehaviour
 
     private readonly List<GameObject> spawned = new List<GameObject>();
     private CardZone currentZone;
-    private int lastCardCount = -1;
+    private const int UnknownCount = -1;
+    private int lastCardCount = UnknownCount;
 
     private void Awake()
     {
@@ -41,7 +42,7 @@ public class DiscardBrowser : MonoBehaviour
     public void Open(CardZone zone)
     {
         currentZone = zone;
-        lastCardCount = -1;
+        lastCardCount = UnknownCount;
         ConfigureGridLayoutIfPresent();
         Rebuild();
         if (root != null) root.SetActive(true);
@@ -52,7 +53,7 @@ public class DiscardBrowser : MonoBehaviour
         Clear();
         if (root != null) root.SetActive(false);
         currentZone = null;
-        lastCardCount = -1;
+        lastCardCount = UnknownCount;
     }
 
     private void Rebuild()

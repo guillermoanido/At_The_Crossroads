@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class Player : MonoBehaviour
 {
+    #region Configuration
+
     public HandManager handManager;
     public DeckManager deckManager;
     public PlayArea playArea;
@@ -22,12 +24,20 @@ public class Player : MonoBehaviour
     [SerializeField] private int maxHp = 30;
     [SerializeField] private int maxStamina = 3;
 
+    #endregion
+
+    #region Properties
+
     public int CurrentHp { get; private set; }
     public int MaxHp => maxHp;
     public int Stamina { get; private set; }
     public int MaxStamina => maxStamina;
 
     public Player Opponent => GameManager.Instance != null ? GameManager.Instance.Opponent(this) : null;
+
+    #endregion
+
+    #region Lifecycle
 
     private void Awake()
     {
@@ -36,11 +46,22 @@ public class Player : MonoBehaviour
         CurrentHp = maxHp;
     }
 
-    public void DrawCard() => deckManager.DrawCard(handManager);
+    #endregion
+
+    #region Stats
+
+    public void AdjustHp(int delta) => CurrentHp = Mathf.Clamp(CurrentHp + delta, 0, maxHp);
+
+    public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
 
     public void ResetStamina() => Stamina = maxStamina;
 
-    public void ResolveUpkeep() => FireTriggersOnBoard(Trigger.OnUpkeep, null);
+    public bool SpendStamina(int amount)
+    {
+        if (Stamina < amount) return false;
+        Stamina -= amount;
+        return true;
+    }
 
     public void TakeDamage(int amount, GameObject sourceCardGO = null, Card sourceCardData = null)
     {
@@ -59,51 +80,17 @@ public class Player : MonoBehaviour
         if (dmg.amount > 0) AdjustHp(-dmg.amount);
     }
 
-    public void AdjustHp(int delta) => CurrentHp = Mathf.Clamp(CurrentHp + delta, 0, maxHp);
+    #endregion
 
-    public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
+    #region Turn
 
-    public bool SpendStamina(int amount)
-    {
-        if (Stamina < amount) return false;
-        Stamina -= amount;
-        return true;
-    }
+    public void DrawCard() => deckManager.DrawCard(handManager);
 
-    public void SendToDiscard(GameObject cardGO)
-    {
-        FireTriggersForDyingCard(cardGO, Trigger.OnDestroyed);
-        MoveCardToZone(cardGO, discardZone);
-    }
+    public void ResolveUpkeep() => FireTriggersOnBoard(Trigger.OnUpkeep, null);
 
-    public void SendToExile(GameObject cardGO) => MoveCardToZone(cardGO, exileZone);
+    #endregion
 
-    public void ReturnToHand(GameObject cardGO)
-    {
-        if (cardGO == null) return;
-        if (handManager.cardsInHand.Contains(cardGO)) return;
-
-        var data = cardGO.GetComponent<CardDisplay>()?.cardData;
-        if (data == null) return;
-
-        RemoveFromAnyZone(cardGO);
-        Destroy(cardGO);
-        handManager.AddCardToHand(data);
-    }
-
-    public void MoveCardToZone(GameObject cardGO, CardZone destination)
-    {
-        if (destination == null || cardGO == null) return;
-
-        if (handManager.cardsInHand.Contains(cardGO))
-            handManager.RemoveCardFromHand(cardGO);
-        else
-            RemoveFromAnyZone(cardGO);
-
-        destination.AddCard(cardGO);
-        FreezeCardInteractions(cardGO);
-        SyncBoardActionsForZone(cardGO, destination);
-    }
+    #region Playing Cards
 
     public bool TryPlayCard(GameObject cardGO, Card cardData)
     {
@@ -126,69 +113,6 @@ public class Player : MonoBehaviour
             EffectRunner.Instance.RunSequence(cardData.onPlayEffects, MakeContext(cardGO, cardData));
 
         return true;
-    }
-
-    private EffectContext MakeContext(GameObject cardGO, Card cardData) => new EffectContext
-    {
-        sourceCardGO = cardGO,
-        sourceCardData = cardData,
-        controller = this,
-        opponent = Opponent
-    };
-
-    private void FireTriggersOnBoard(Trigger trigger, DamageEvent dmg)
-    {
-        foreach (var zone in BoardZones())
-        {
-            if (zone == null) continue;
-            var snapshot = new List<GameObject>(zone.Cards);
-            foreach (var cardGO in snapshot)
-            {
-                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
-                if (data == null || data.triggeredEffects == null) continue;
-                foreach (var te in data.triggeredEffects)
-                {
-                    if (te == null || te.trigger != trigger || te.effect == null) continue;
-                    var ctx = MakeContext(cardGO, data);
-                    ctx.damage = dmg;
-
-                    if (trigger == Trigger.OnControllerTakeDamage)
-                        te.effect.ResolveImmediate(ctx);
-                    else if (EffectRunner.Instance != null)
-                        EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
-                }
-            }
-        }
-    }
-
-    private void FireTriggersForDyingCard(GameObject cardGO, Trigger trigger)
-    {
-        if (cardGO == null) return;
-        var data = cardGO.GetComponent<CardDisplay>()?.cardData;
-        if (data == null || data.triggeredEffects == null) return;
-
-        var zone = cardGO.GetComponentInParent<CardZone>();
-        if (zone == null) return;
-        if (zone.Kind == CardZone.ZoneKind.Discard || zone.Kind == CardZone.ZoneKind.Exile) return;
-
-        var ctx = MakeContext(cardGO, data);
-        foreach (var te in data.triggeredEffects)
-        {
-            if (te == null || te.trigger != trigger || te.effect == null) continue;
-            if (EffectRunner.Instance != null)
-                EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
-        }
-    }
-
-    private IEnumerable<CardZone> BoardZones()
-    {
-        yield return weaponZone;
-        yield return armourZone;
-        yield return shieldZone;
-        yield return equipmentZone;
-        yield return accessoryZone;
-        yield return talentZone;
-        yield return auraZone;
     }
 
     private bool CanPlay(Card card, out string reason)
@@ -244,6 +168,45 @@ public class Player : MonoBehaviour
         }
     }
 
+    #endregion
+
+    #region Zone Movement
+
+    public void SendToDiscard(GameObject cardGO)
+    {
+        FireTriggersForDyingCard(cardGO, Trigger.OnDestroyed);
+        MoveCardToZone(cardGO, discardZone);
+    }
+
+    public void SendToExile(GameObject cardGO) => MoveCardToZone(cardGO, exileZone);
+
+    public void ReturnToHand(GameObject cardGO)
+    {
+        if (cardGO == null) return;
+        if (handManager.cardsInHand.Contains(cardGO)) return;
+
+        var data = cardGO.GetComponent<CardDisplay>()?.cardData;
+        if (data == null) return;
+
+        RemoveFromAnyZone(cardGO);
+        Destroy(cardGO);
+        handManager.AddCardToHand(data);
+    }
+
+    public void MoveCardToZone(GameObject cardGO, CardZone destination)
+    {
+        if (destination == null || cardGO == null) return;
+
+        if (handManager.cardsInHand.Contains(cardGO))
+            handManager.RemoveCardFromHand(cardGO);
+        else
+            RemoveFromAnyZone(cardGO);
+
+        destination.AddCard(cardGO);
+        FreezeCardInteractions(cardGO);
+        SyncBoardActionsForZone(cardGO, destination);
+    }
+
     private void RemoveFromAnyZone(GameObject cardGO)
     {
         foreach (var zone in AllZones())
@@ -255,6 +218,90 @@ public class Player : MonoBehaviour
             }
         }
     }
+
+    private IEnumerable<CardZone> AllZones()
+    {
+        yield return weaponZone;
+        yield return armourZone;
+        yield return shieldZone;
+        yield return equipmentZone;
+        yield return accessoryZone;
+        yield return talentZone;
+        yield return auraZone;
+        yield return discardZone;
+        yield return exileZone;
+    }
+
+    private IEnumerable<CardZone> BoardZones()
+    {
+        yield return weaponZone;
+        yield return armourZone;
+        yield return shieldZone;
+        yield return equipmentZone;
+        yield return accessoryZone;
+        yield return talentZone;
+        yield return auraZone;
+    }
+
+    #endregion
+
+    #region Effect Plumbing
+
+    private EffectContext MakeContext(GameObject cardGO, Card cardData) => new EffectContext
+    {
+        sourceCardGO = cardGO,
+        sourceCardData = cardData,
+        controller = this,
+        opponent = Opponent
+    };
+
+    private void FireTriggersOnBoard(Trigger trigger, DamageEvent dmg)
+    {
+        foreach (var zone in BoardZones())
+        {
+            if (zone == null) continue;
+            var snapshot = new List<GameObject>(zone.Cards);
+            foreach (var cardGO in snapshot)
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                if (data == null || data.triggeredEffects == null) continue;
+                foreach (var te in data.triggeredEffects)
+                {
+                    if (te == null || te.trigger != trigger || te.effect == null) continue;
+                    var ctx = MakeContext(cardGO, data);
+                    ctx.damage = dmg;
+
+                    if (trigger == Trigger.OnControllerTakeDamage)
+                        te.effect.ResolveImmediate(ctx);
+                    else if (EffectRunner.Instance != null)
+                        EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
+                }
+            }
+        }
+    }
+
+    private void FireTriggersForDyingCard(GameObject cardGO, Trigger trigger)
+    {
+        if (cardGO == null) return;
+        var data = cardGO.GetComponent<CardDisplay>()?.cardData;
+        if (data == null || data.triggeredEffects == null) return;
+
+        var zone = cardGO.GetComponentInParent<CardZone>();
+        if (zone == null) return;
+        if (zone.Kind == CardZone.ZoneKind.Discard || zone.Kind == CardZone.ZoneKind.Exile) return;
+
+        var ctx = MakeContext(cardGO, data);
+        foreach (var te in data.triggeredEffects)
+        {
+            if (te == null || te.trigger != trigger || te.effect == null) continue;
+            if (EffectRunner.Instance != null)
+                EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
+        }
+    }
+
+    #endregion
+
+    #region Interaction Sync
 
     private static void FreezeCardInteractions(GameObject cardGO)
     {
@@ -271,16 +318,5 @@ public class Player : MonoBehaviour
         actions.enabled = destination != discardZone && destination != exileZone;
     }
 
-    private IEnumerable<CardZone> AllZones()
-    {
-        yield return weaponZone;
-        yield return armourZone;
-        yield return shieldZone;
-        yield return equipmentZone;
-        yield return accessoryZone;
-        yield return talentZone;
-        yield return auraZone;
-        yield return discardZone;
-        yield return exileZone;
-    }
+    #endregion
 }

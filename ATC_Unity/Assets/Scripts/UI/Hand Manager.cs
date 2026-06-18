@@ -87,9 +87,15 @@ public class HandManager : MonoBehaviour
         var rotation = Quaternion.Euler(0f, 0f, angle);
 
         float x = spacing * (index - center);
-        float normalized = 2f * index / (count - 1) - 1f;
-        float y = flip * verticalSpacing * (1 - normalized * normalized);
+        float y = flip * verticalSpacing * ParabolicLift(index, count);
 
         return (new Vector3(x, y, 0f), rotation);
+    }
+
+    private static float ParabolicLift(int index, int count)
+    {
+        if (count <= 1) return 0f;
+        float t = (2f * index) / (count - 1) - 1f;
+        return 1f - t * t;
     }
 }

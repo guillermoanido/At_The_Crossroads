@@ -1,5 +1,8 @@
 using System;
+using System.Collections;
 using UnityEngine;
+
+#region Triggers & Events
 
 public enum Trigger
 {
@@ -33,6 +36,10 @@ public class EffectContext
     public DamageEvent damage;
 }
 
+#endregion
+
+#region Target Filters
+
 public static class TargetFilters
 {
     public static bool IsCardInPlay(Targetable t)
@@ -45,3 +52,20 @@ public static class TargetFilters
     public static bool IsOpponentCardInPlay(Targetable t, Player controller)
         => IsCardInPlay(t) && t.Owner != null && t.Owner != controller;
 }
+
+#endregion
+
+#region CardEffect Base
+
+public abstract class CardEffect : ScriptableObject
+{
+    public virtual void ResolveImmediate(EffectContext ctx) { }
+
+    public virtual IEnumerator Resolve(EffectContext ctx)
+    {
+        ResolveImmediate(ctx);
+        yield break;
+    }
+}
+
+#endregion

@@ -13,18 +13,22 @@ public class GameManager : MonoBehaviour
     [Tooltip("How many cards each player draws at the start of the game.")]
     [SerializeField] private int startingHandSize = 5;
 
+    private const float MinHandScale = 0.2f;
+    private const float MinZoneScale = 0.1f;
+    private const float MaxScale = 1.5f;
+
     [Header("Live Scales — tweak during play")]
-    [Range(0.2f, 1.5f)] public float handCardScale = 1f;
-    [Range(0.1f, 1.5f)] public float discardScale = 1f;
-    [Range(0.1f, 1.5f)] public float weaponScale = 1f;
-    [Range(0.1f, 1.5f)] public float shieldScale = 1f;
-    [Range(0.1f, 1.5f)] public float armourScale = 1f;
-    [Range(0.1f, 1.5f)] public float equipmentScale = 1f;
-    [Range(0.1f, 1.5f)] public float accessoryScale = 1f;
-    [Range(0.1f, 1.5f)] public float talentScale = 1f;
-    [Range(0.1f, 1.5f)] public float auraScale = 1f;
-    [Range(0.1f, 1.5f)] public float exileScale = 1f;
-    [Range(0.1f, 1.5f)] public float otherZoneScale = 1f;
+    [Range(MinHandScale, MaxScale)] public float handCardScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float discardScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float weaponScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float shieldScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float armourScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float equipmentScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float accessoryScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float talentScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float auraScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float exileScale = 1f;
+    [Range(MinZoneScale, MaxScale)] public float otherZoneScale = 1f;
 
     public Player ActivePlayer { get; private set; }
     public GamePhase CurrentPhase { get; private set; }
