@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -15,6 +16,11 @@ public class ScryPanel : MonoBehaviour
 
     [Tooltip("Multiplier applied to the selected entry's scale so it's visually distinguished.")]
     [SerializeField] private float selectedScaleBoost = 1.15f;
+
+    [Header("Order Number")]
+    [Tooltip("Font size of the '1, 2, 3…' order badge stamped on each scry card, in the card's own canvas units.")]
+    [SerializeField] private float orderLabelFontSize = 120f;
+    [SerializeField] private Color orderLabelColor = new Color(1f, 0.95f, 0.4f);
 
     private DeckManager activeDeck;
     private readonly List<Card> currentOrder = new List<Card>();
@@ -102,9 +108,40 @@ public class ScryPanel : MonoBehaviour
             display.SetFaceUp(true);
         }
 
+        AddOrderLabel(clone, index + 1, display);
         DisableGameplayInteractions(clone);
         clone.AddComponent<ScryEntryClick>().Init(this, index);
         return clone;
+    }
+
+    // Stamps the card's position in the scry order (1 = next to be drawn) onto its top-left corner.
+    // Rebuilt every reorder, so the numbers always reflect the current order.
+    private void AddOrderLabel(GameObject clone, int order, CardDisplay display)
+    {
+        var canvas = clone.GetComponentInChildren<Canvas>(true);
+        Transform parent = canvas != null ? canvas.transform : clone.transform;
+
+        var labelGO = new GameObject($"Order {order}", typeof(RectTransform));
+        var rect = labelGO.GetComponent<RectTransform>();
+        rect.SetParent(parent, false);
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = new Vector2(24f, -24f);
+        rect.sizeDelta = new Vector2(240f, 240f);
+        rect.localScale = Vector3.one;
+
+        var label = labelGO.AddComponent<TextMeshProUGUI>();
+        label.text = order.ToString();
+        label.fontSize = orderLabelFontSize;
+        label.color = orderLabelColor;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.TopLeft;
+        label.raycastTarget = false;
+        if (display != null && display.cardNameText != null)
+            label.font = display.cardNameText.font;
+
+        labelGO.transform.SetAsLastSibling();
     }
 
     private static void DisableGameplayInteractions(GameObject clone)

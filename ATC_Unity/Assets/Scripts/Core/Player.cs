@@ -24,6 +24,9 @@ public class Player : MonoBehaviour
     [SerializeField] private int maxHp = 30;
     [SerializeField] private int maxStamina = 3;
 
+    [Tooltip("Defense acts as a shield pool: it absorbs incoming damage point-for-point before HP is touched, and depletes as it soaks hits. Set the cap here (0 = no upper cap; cards/buttons can stack it freely).")]
+    [SerializeField] private int maxDefense = 0;
+
     #endregion
 
     #region Properties
@@ -32,6 +35,8 @@ public class Player : MonoBehaviour
     public int MaxHp => maxHp;
     public int Stamina { get; private set; }
     public int MaxStamina => maxStamina;
+    public int Defense { get; private set; }
+    public int MaxDefense => maxDefense;
 
     public Player Opponent => GameManager.Instance != null ? GameManager.Instance.Opponent(this) : null;
 
@@ -44,6 +49,7 @@ public class Player : MonoBehaviour
         handManager.SetOwner(this);
         Stamina = maxStamina;
         CurrentHp = maxHp;
+        Defense = maxDefense;
     }
 
     #endregion
@@ -55,6 +61,13 @@ public class Player : MonoBehaviour
     public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
 
     public void ResetStamina() => Stamina = maxStamina;
+
+    // Defense is a shield pool. maxDefense of 0 means "no upper cap" so cards can stack it freely.
+    public void AdjustDefense(int delta)
+    {
+        int next = Defense + delta;
+        Defense = maxDefense > 0 ? Mathf.Clamp(next, 0, maxDefense) : Mathf.Max(0, next);
+    }
 
     public bool SpendStamina(int amount)
     {
@@ -76,6 +89,15 @@ public class Player : MonoBehaviour
         };
 
         FireTriggersOnBoard(Trigger.OnControllerTakeDamage, dmg);
+        if (dmg.amount <= 0) return;
+
+        // Shield pool soaks the hit first, then whatever is left spills onto HP.
+        int absorbed = Mathf.Min(Defense, dmg.amount);
+        if (absorbed > 0)
+        {
+            Defense -= absorbed;
+            dmg.amount -= absorbed;
+        }
 
         if (dmg.amount > 0) AdjustHp(-dmg.amount);
     }

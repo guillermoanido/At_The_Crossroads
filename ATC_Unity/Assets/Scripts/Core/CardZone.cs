@@ -6,7 +6,7 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
 {
     public enum ZoneKind { Other, Discard, Weapon, Shield, Armour, Equipment, Accessory, Talent, Aura, Exile }
 
-    [Tooltip("Identifies this zone for the GameManager's per-zone scale sliders.")]
+    [Tooltip("Identifies this zone. Drives which card-size slider the GameManager applies (Discard/Exile share one; every other kind uses the Play-area size) and lets effects tell in-play cards from discard/exile.")]
     [SerializeField] private ZoneKind kind = ZoneKind.Other;
 
     public ZoneKind Kind => kind;

@@ -13,22 +13,18 @@ public class GameManager : MonoBehaviour
     [Tooltip("How many cards each player draws at the start of the game.")]
     [SerializeField] private int startingHandSize = 5;
 
-    private const float MinHandScale = 0.2f;
-    private const float MinZoneScale = 0.1f;
+    private const float MinScale = 0.2f;
     private const float MaxScale = 1.5f;
 
-    [Header("Live Scales — tweak during play")]
-    [Range(MinHandScale, MaxScale)] public float handCardScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float discardScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float weaponScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float shieldScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float armourScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float equipmentScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float accessoryScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float talentScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float auraScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float exileScale = 1f;
-    [Range(MinZoneScale, MaxScale)] public float otherZoneScale = 1f;
+    [Header("Live Card Sizes — tweak during play")]
+    [Tooltip("Size of the cards fanned in each player's hand.")]
+    [Range(MinScale, MaxScale)] public float handCardScale = 1f;
+
+    [Tooltip("Size of cards played onto the board — every equipment/board zone (weapon, shield, armour, equipment, accessory, talent, aura).")]
+    [Range(MinScale, MaxScale)] public float playAreaCardScale = 1f;
+
+    [Tooltip("Size of cards resting in the discard and exile piles.")]
+    [Range(MinScale, MaxScale)] public float discardExileCardScale = 1f;
 
     public Player ActivePlayer { get; private set; }
     public GamePhase CurrentPhase { get; private set; }
@@ -37,16 +33,11 @@ public class GameManager : MonoBehaviour
     {
         switch (kind)
         {
-            case CardZone.ZoneKind.Discard:    return discardScale;
-            case CardZone.ZoneKind.Weapon:     return weaponScale;
-            case CardZone.ZoneKind.Shield:     return shieldScale;
-            case CardZone.ZoneKind.Armour:     return armourScale;
-            case CardZone.ZoneKind.Equipment:  return equipmentScale;
-            case CardZone.ZoneKind.Accessory:  return accessoryScale;
-            case CardZone.ZoneKind.Talent:     return talentScale;
-            case CardZone.ZoneKind.Aura:       return auraScale;
-            case CardZone.ZoneKind.Exile:      return exileScale;
-            default:                           return otherZoneScale;
+            case CardZone.ZoneKind.Discard:
+            case CardZone.ZoneKind.Exile:
+                return discardExileCardScale;
+            default:
+                return playAreaCardScale;
         }
     }
 

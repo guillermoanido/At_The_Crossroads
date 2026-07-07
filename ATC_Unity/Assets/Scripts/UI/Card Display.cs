@@ -22,6 +22,20 @@ public class CardDisplay : MonoBehaviour
 
     public bool IsFaceUp { get; private set; } = true;
 
+    // The prefab's default front sprite, captured before anything can swap in the card back,
+    // so flipping face-up again always restores the front art.
+    private Sprite frontSprite;
+    private bool capturedFront;
+
+    private void Awake()
+    {
+        if (cardImage != null)
+        {
+            frontSprite = cardImage.sprite;
+            capturedFront = true;
+        }
+    }
+
     private void Start()
     {
         Render();
@@ -54,11 +68,12 @@ public class CardDisplay : MonoBehaviour
     private void ShowFaceUp()
     {
         if (faceContent != null) faceContent.SetActive(true);
+        if (cardImage != null && capturedFront) cardImage.sprite = frontSprite;
         if (cardData == null) return;
 
-        cardNameText.text = cardData.cardName;
-        cardEffectText.text = cardData.effectDescription;
-        speedText.text = cardData.speedType.ToString();
-        costText.text = cardData.energyCost.ToString();
+        if (cardNameText != null) cardNameText.text = cardData.cardName;
+        if (cardEffectText != null) cardEffectText.text = cardData.effectDescription;
+        if (speedText != null) speedText.text = cardData.speedType.ToString();
+        if (costText != null) costText.text = cardData.energyCost.ToString();
     }
 }
