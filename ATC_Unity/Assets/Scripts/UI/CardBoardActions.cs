@@ -50,13 +50,13 @@ public class CardBoardActions : MonoBehaviour, IPointerClickHandler, IPointerEnt
 
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            var owner = GetOwner();
+            /*var owner = GetOwner();
             var data = GetComponent<CardDisplay>()?.cardData;
             if (owner != null && data != null && data.FirstActivated() != null)
                 owner.TryActivateCard(gameObject, data);   // pays cost, taps, resolves the ability
             else
                 GetComponent<CardTapState>().Toggle();     // no activated ability → just a manual tap
-            return;
+            */return;
         }
 
         var owner = GetOwner();
