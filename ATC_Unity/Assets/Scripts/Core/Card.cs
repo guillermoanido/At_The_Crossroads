@@ -8,7 +8,12 @@ public class Card : ScriptableObject
     public CardType cardType;
     public SpeedType speedType;
 
+    [Tooltip("Stamina paid to play this card from hand.")]
     public int energyCost;
+
+    [Header("Deck Building")]
+    [Tooltip("Point cost to include this card in a deck. Used by deck building later; ignored during play.")]
+    public int deckCost = 1;
 
     public int damageMin;
     public int damageMax;
@@ -21,8 +26,8 @@ public class Card : ScriptableObject
     public string effectDescription;
 
     [Header("Effects")]
-    public List<CardEffect> onPlayEffects = new List<CardEffect>();
-    public List<TriggeredEffect> triggeredEffects = new List<TriggeredEffect>();
+    [Tooltip("Everything this card does. OnPlay fires when played; Activated fires when you click it in play; the rest fire on their trigger.")]
+    public List<CardAbility> abilities = new List<CardAbility>();
 
     public enum CardType
     {
@@ -44,5 +49,36 @@ public class Card : ScriptableObject
     {
         Reflex,
         Channel
+    }
+
+    // Permanents stay on the board when played; everything else resolves and goes to the discard.
+    public bool IsPermanent
+    {
+        get
+        {
+            switch (cardType)
+            {
+                case CardType.Weapon:
+                case CardType.Armour:
+                case CardType.Shield:
+                case CardType.Equipment:
+                case CardType.Accesory:
+                case CardType.Talent:
+                case CardType.Aura:
+                    return true;
+                default: // Attack, Spell, Skill, Consumable, Condition
+                    return false;
+            }
+        }
+    }
+
+    // The first Activated ability, if any — what a click on this card in play uses.
+    public CardAbility FirstActivated()
+    {
+        if (abilities == null) return null;
+        foreach (var a in abilities)
+            if (a != null && a.trigger == Trigger.Activated)
+                return a;
+        return null;
     }
 }

@@ -108,7 +108,22 @@ public class Player : MonoBehaviour
 
     public void DrawCard() => deckManager.DrawCard(handManager);
 
-    public void ResolveUpkeep() => FireTriggersOnBoard(Trigger.OnUpkeep, null);
+    public void ResolveUpkeep()
+    {
+        UntapBoard();
+        FireTriggersOnBoard(Trigger.OnUpkeep, null);
+    }
+
+    private void UntapBoard()
+    {
+        foreach (var zone in BoardZones())
+        {
+            if (zone == null) continue;
+            foreach (var cardGO in zone.Cards)
+                if (cardGO != null)
+                    cardGO.GetComponent<CardTapState>()?.Untap();
+        }
+    }
 
     #endregion
 
@@ -131,11 +146,58 @@ public class Player : MonoBehaviour
 
         Debug.Log($"[Play] {name} played {cardData.cardName} → {zone.name}");
 
-        if (cardData.onPlayEffects != null && cardData.onPlayEffects.Count > 0 && EffectRunner.Instance != null)
-            EffectRunner.Instance.RunSequence(cardData.onPlayEffects, MakeContext(cardGO, cardData));
+        if (EffectRunner.Instance != null)
+            EffectRunner.Instance.FireAbilities(cardData, MakeContext(cardGO, cardData), Trigger.OnPlay);
 
         return true;
     }
+
+    // Click a permanent already in play to use its Activated ability (Dagger, Kite Shield, …).
+    public bool TryActivateCard(GameObject cardGO, Card cardData)
+    {
+        if (cardGO == null || cardData == null) return false;
+
+        var ability = cardData.FirstActivated();
+        if (ability == null) return false;
+
+        var zone = cardGO.GetComponentInParent<CardZone>();
+        if (zone == null || !IsBoardZone(zone))
+        {
+            Debug.Log($"[Activate] {cardData.cardName} must be in play to activate.");
+            return false;
+        }
+
+        var tap = cardGO.GetComponent<CardTapState>();
+        if (ability.tapToActivate && tap != null && tap.IsTapped)
+        {
+            Debug.Log($"[Activate] {cardData.cardName} is tapped — already used this turn.");
+            return false;
+        }
+
+        if (!SpeedAllowedThisPhase(ability.activationSpeed, out string reason))
+        {
+            Debug.Log($"[Activate] {name} cannot activate {cardData.cardName}: {reason}");
+            return false;
+        }
+
+        if (Stamina < ability.activationCost)
+        {
+            Debug.Log($"[Activate] {name} lacks stamina to activate {cardData.cardName} ({Stamina}/{ability.activationCost}).");
+            return false;
+        }
+
+        SpendStamina(ability.activationCost);
+        if (ability.tapToActivate && tap != null) tap.Tap();
+
+        if (EffectRunner.Instance != null)
+            EffectRunner.Instance.FireAbilities(cardData, MakeContext(cardGO, cardData), Trigger.Activated);
+
+        Debug.Log($"[Activate] {name} activated {cardData.cardName}.");
+        return true;
+    }
+
+    private static bool IsBoardZone(CardZone zone)
+        => zone.Kind != CardZone.ZoneKind.Discard && zone.Kind != CardZone.ZoneKind.Exile;
 
     private bool CanPlay(Card card, out string reason)
     {
@@ -210,6 +272,9 @@ public class Player : MonoBehaviour
         var data = cardGO.GetComponent<CardDisplay>()?.cardData;
         if (data == null) return;
 
+        // The hovered card is about to be destroyed; drop any preview of it first.
+        if (CardPreview.Instance != null) CardPreview.Instance.Hide();
+
         RemoveFromAnyZone(cardGO);
         Destroy(cardGO);
         handManager.AddCardToHand(data);
@@ -279,6 +344,7 @@ public class Player : MonoBehaviour
 
     private void FireTriggersOnBoard(Trigger trigger, DamageEvent dmg)
     {
+        if (EffectRunner.Instance == null) return;
         foreach (var zone in BoardZones())
         {
             if (zone == null) continue;
@@ -286,39 +352,31 @@ public class Player : MonoBehaviour
             foreach (var cardGO in snapshot)
             {
                 var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
-                if (data == null || data.triggeredEffects == null) continue;
-                foreach (var te in data.triggeredEffects)
-                {
-                    if (te == null || te.trigger != trigger || te.effect == null) continue;
-                    var ctx = MakeContext(cardGO, data);
-                    ctx.damage = dmg;
+                if (data == null) continue;
 
-                    if (trigger == Trigger.OnControllerTakeDamage)
-                        te.effect.ResolveImmediate(ctx);
-                    else if (EffectRunner.Instance != null)
-                        EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
-                }
+                var ctx = MakeContext(cardGO, data);
+                ctx.damage = dmg;
+
+                // Damage triggers must resolve synchronously (before HP changes); others may await targeting.
+                if (trigger == Trigger.OnControllerTakeDamage)
+                    EffectRunner.Instance.FireAbilitiesImmediate(data, ctx, trigger);
+                else
+                    EffectRunner.Instance.FireAbilities(data, ctx, trigger);
             }
         }
     }
 
     private void FireTriggersForDyingCard(GameObject cardGO, Trigger trigger)
     {
-        if (cardGO == null) return;
+        if (cardGO == null || EffectRunner.Instance == null) return;
         var data = cardGO.GetComponent<CardDisplay>()?.cardData;
-        if (data == null || data.triggeredEffects == null) return;
+        if (data == null) return;
 
         var zone = cardGO.GetComponentInParent<CardZone>();
         if (zone == null) return;
         if (zone.Kind == CardZone.ZoneKind.Discard || zone.Kind == CardZone.ZoneKind.Exile) return;
 
-        var ctx = MakeContext(cardGO, data);
-        foreach (var te in data.triggeredEffects)
-        {
-            if (te == null || te.trigger != trigger || te.effect == null) continue;
-            if (EffectRunner.Instance != null)
-                EffectRunner.Instance.RunSequence(new[] { te.effect }, ctx);
-        }
+        EffectRunner.Instance.FireAbilities(data, MakeContext(cardGO, data), trigger);
     }
 
     #endregion
@@ -331,6 +389,10 @@ public class Player : MonoBehaviour
         if (movement != null) movement.enabled = false;
         var drag = cardGO.GetComponent<DragUIObject>();
         if (drag != null) drag.enabled = false;
+
+        // A card played/moved off the cursor never gets an OnPointerExit (its hover handler is
+        // about to be disabled), so dismiss any hover preview of it here to avoid a stuck overlay.
+        if (CardPreview.Instance != null) CardPreview.Instance.Hide();
     }
 
     private void SyncBoardActionsForZone(GameObject cardGO, CardZone destination)

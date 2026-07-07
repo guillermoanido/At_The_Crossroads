@@ -16,6 +16,7 @@ MonoBehaviour:
   cardType: 7
   speedType: 1
   energyCost: 2
+  deckCost: 1
   damageMin: 0
   damageMax: 0
   strRequired: 6
@@ -23,3 +24,11 @@ MonoBehaviour:
   wisRequired: 0
   dexRequired: 0
   effectDescription: Activate (Reflex) - Gain 2 Block
+  abilities:
+  - trigger: 1
+    effect: 2
+    amount: 2
+    target: 1
+    activationSpeed: 0
+    activationCost: 0
+    tapToActivate: 1

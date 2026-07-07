@@ -16,6 +16,7 @@ MonoBehaviour:
   cardType: 8
   speedType: 0
   energyCost: 1
+  deckCost: 1
   damageMin: 0
   damageMax: 0
   strRequired: 5
@@ -23,3 +24,11 @@ MonoBehaviour:
   wisRequired: 0
   dexRequired: 0
   effectDescription: Gain 4 Block
+  abilities:
+  - trigger: 0
+    effect: 2
+    amount: 4
+    target: 1
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0

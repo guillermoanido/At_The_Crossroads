@@ -130,6 +130,9 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
 
     private bool OwnerCanInteractNow()
     {
+        // Guards clones that were never Init'd (e.g. the CardPreview overlay is itself a card
+        // prefab instance with an un-owned CardMovement). No hand/owner ⇒ not interactive.
+        if (handManager == null || GameManager.Instance == null) return false;
         if (GameManager.Instance.IsActivePlayer(handManager.Owner)) return true;
         var card = GetComponent<CardDisplay>().cardData;
         return card != null && card.speedType == Card.SpeedType.Reflex;
