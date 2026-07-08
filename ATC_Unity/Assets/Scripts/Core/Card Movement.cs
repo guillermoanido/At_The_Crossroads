@@ -133,7 +133,17 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
         // Guards clones that were never Init'd (e.g. the CardPreview overlay is itself a card
         // prefab instance with an un-owned CardMovement). No hand/owner ⇒ not interactive.
         if (handManager == null || GameManager.Instance == null) return false;
-        if (GameManager.Instance.IsActivePlayer(handManager.Owner)) return true;
+
+        var owner = handManager.Owner;
+
+        // You can only ever handle your OWN cards, and only while you hold priority — so neither
+        // player can touch the other's hand. (Priority = active player by default; the opponent can
+        // take it for a reflex window.)
+        if (!GameManager.Instance.IsControllingPlayer(owner)) return false;
+
+        // On your own turn you can pick up anything; during a reflex window (holding priority on the
+        // opponent's turn) only Reflex-speed cards are live.
+        if (GameManager.Instance.IsActivePlayer(owner)) return true;
         var card = GetComponent<CardDisplay>().cardData;
         return card != null && card.speedType == Card.SpeedType.Reflex;
     }

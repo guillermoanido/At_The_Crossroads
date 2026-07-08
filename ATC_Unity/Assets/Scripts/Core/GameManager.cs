@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class GameManager : MonoBehaviour
 {
@@ -10,8 +11,13 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Player player2;
 
     [Header("Setup")]
-    [Tooltip("How many cards each player draws at the start of the game.")]
-    [SerializeField] private int startingHandSize = 5;
+    [Tooltip("How many cards each player holds at the start of the game.")]
+    [SerializeField] private int startingHandSize = 6;
+
+    [Tooltip("Key the non-active player presses to take priority for a reflex response (and again to hand it back). Local-multiplayer stand-in for per-client input.")]
+    [SerializeField] private Key passPriorityKey = Key.Tab;
+
+    private bool skipNextDraw;
 
     private const float MinScale = 0.2f;
     private const float MaxScale = 1.5f;
@@ -28,6 +34,11 @@ public class GameManager : MonoBehaviour
 
     public Player ActivePlayer { get; private set; }
     public GamePhase CurrentPhase { get; private set; }
+
+    // Who may currently touch cards. Defaults to the active player; the non-active player can take it
+    // temporarily (a reflex window) via passPriorityKey. Networked play will drive this from client identity.
+    public Player ControllingPlayer { get; private set; }
+    public bool IsControllingPlayer(Player player) => ControllingPlayer == player;
 
     public float GetScaleForZone(CardZone.ZoneKind kind)
     {
@@ -53,7 +64,24 @@ public class GameManager : MonoBehaviour
 
     private void Start() => StartGame();
 
-    private void Update() => ApplyLiveScales();
+    private void Update()
+    {
+        ApplyLiveScales();
+        HandlePriorityInput();
+    }
+
+    // Local-multiplayer stand-in: the non-active player grabs priority to answer with a reflex, then hands it back.
+    private void HandlePriorityInput()
+    {
+        if (Keyboard.current == null) return;
+        if (Keyboard.current[passPriorityKey].wasPressedThisFrame) TogglePriority();
+    }
+
+    public void TogglePriority()
+    {
+        ControllingPlayer = (ControllingPlayer == ActivePlayer) ? Opponent(ActivePlayer) : ActivePlayer;
+        Debug.Log($"[Priority] {(ControllingPlayer != null ? ControllingPlayer.name : "<none>")} now has priority.");
+    }
 
     private void ApplyLiveScales()
     {
@@ -95,6 +123,7 @@ public class GameManager : MonoBehaviour
     {
         DealOpeningHands();
         SetActivePlayer(player1);
+        skipNextDraw = true;   // the first player skips the draw on their very first turn
         BeginPhase(GamePhase.Draw);
     }
 
@@ -153,7 +182,8 @@ public class GameManager : MonoBehaviour
     private void ResolveDrawPhase()
     {
         ResolveUpkeep();
-        ActivePlayer.DrawCard();
+        if (skipNextDraw) skipNextDraw = false;
+        else ActivePlayer.DrawCard();
         ActivePlayer.ResetStamina();
         BeginPhase(GamePhase.Main1);
     }
@@ -164,5 +194,9 @@ public class GameManager : MonoBehaviour
         ActivePlayer.ResolveUpkeep();
     }
 
-    private void SetActivePlayer(Player player) => ActivePlayer = player;
+    private void SetActivePlayer(Player player)
+    {
+        ActivePlayer = player;
+        ControllingPlayer = player;   // priority returns to whoever's turn it is
+    }
 }

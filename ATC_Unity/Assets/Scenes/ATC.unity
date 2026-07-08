@@ -1333,7 +1333,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   player1: {fileID: 1812121544}
   player2: {fileID: 398138182}
-  startingHandSize: 4
+  startingHandSize: 6
   handCardScale: 0.8
   playAreaCardScale: 1
   discardExileCardScale: 1

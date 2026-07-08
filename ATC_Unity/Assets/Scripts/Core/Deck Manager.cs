@@ -6,6 +6,9 @@ public class DeckManager : MonoBehaviour
     [Tooltip("The deck. Draws come off index 0; cards are removed when drawn.")]
     public List<Card> allCards = new List<Card>();
 
+    [Tooltip("If set, this built deck (validated against DeckRules) is played instead of the Resources/Inspector list.")]
+    [SerializeField] private DeckDefinition deckDefinition;
+
     [Tooltip("If true, also loads every Card asset under Resources/Cards into this deck on Awake. Turn off to use only the Inspector list.")]
     [SerializeField] private bool loadFromResources = true;
 
@@ -13,8 +16,18 @@ public class DeckManager : MonoBehaviour
 
     private void Awake()
     {
-        if (loadFromResources) LoadCardsFromResources();
+        if (deckDefinition != null) LoadFromDefinition(deckDefinition);
+        else if (loadFromResources) LoadCardsFromResources();
         if (allCards.Count == 0) Debug.LogWarning($"[Deck] {name} has 0 cards.");
+    }
+
+    // Populates this play-deck from a built DeckDefinition, warning (but still loading) if it's illegal.
+    public void LoadFromDefinition(DeckDefinition deck)
+    {
+        if (deck == null) return;
+        if (!DeckRules.Validate(deck, out var problems))
+            foreach (var p in problems) Debug.LogWarning($"[Deck] {deck.deckName}: {p}");
+        allCards = new List<Card>(deck.cards);
     }
 
     public void DealStartingHand(HandManager hand, int cardCount)

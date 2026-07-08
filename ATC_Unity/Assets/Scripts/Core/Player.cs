@@ -56,7 +56,8 @@ public class Player : MonoBehaviour
 
     #region Stats
 
-    public void AdjustHp(int delta) => CurrentHp = Mathf.Clamp(CurrentHp + delta, 0, maxHp);
+    // maxHp is the starting value, not a ceiling — healing can push HP above it.
+    public void AdjustHp(int delta) => CurrentHp = Mathf.Max(0, CurrentHp + delta);
 
     public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
 
@@ -110,8 +111,9 @@ public class Player : MonoBehaviour
 
     public void ResolveUpkeep()
     {
+        Defense = 0;   // Block is retained through the opponent's turn, then lost at the start of yours.
         UntapBoard();
-        FireTriggersOnBoard(Trigger.OnUpkeep, null);
+        FireTriggersOnBoard(Trigger.OnUpkeep, null);   // "Start of turn" abilities (e.g. Iron Plate) fire here
     }
 
     private void UntapBoard()
@@ -159,6 +161,13 @@ public class Player : MonoBehaviour
 
         var ability = cardData.FirstActivated();
         if (ability == null) return false;
+
+        // You can only activate your own permanents, and only while you hold priority.
+        if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(this))
+        {
+            Debug.Log($"[Activate] {name} doesn't have priority.");
+            return false;
+        }
 
         var zone = cardGO.GetComponentInParent<CardZone>();
         if (zone == null || !IsBoardZone(zone))
