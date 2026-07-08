@@ -62,6 +62,9 @@ public class CardBoardActions : MonoBehaviour, IPointerClickHandler, IPointerEnt
         var owner = GetOwner();
         if (owner == null) return;
 
+        // You can only send your OWN board cards away, and only while you hold priority.
+        if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(owner)) return;
+
         if (eventData.button == PointerEventData.InputButton.Right)
             owner.SendToDiscard(gameObject);
         else if (eventData.button == PointerEventData.InputButton.Middle)

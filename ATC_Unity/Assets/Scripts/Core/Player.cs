@@ -210,6 +210,14 @@ public class Player : MonoBehaviour
 
     private bool CanPlay(Card card, out string reason)
     {
+        // Authoritative priority gate: even if a drag began before priority changed hands, the
+        // play itself is blocked unless you currently hold priority.
+        if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(this))
+        {
+            reason = "You don't have priority";
+            return false;
+        }
+
         if (!SpeedAllowedThisPhase(card.speedType, out reason)) return false;
 
         if (Stamina < card.energyCost)

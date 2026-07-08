@@ -22,18 +22,20 @@ public static class DeckRules
         problems = new List<string>();
         if (deck == null) { problems.Add("Deck is null."); return false; }
 
-        if (deck.Count < MinDeckSize)
-            problems.Add($"Deck has {deck.Count} cards; minimum is {MinDeckSize}.");
-
+        int realCount = 0;
         if (deck.cards != null)
         {
             foreach (var card in deck.cards)
             {
                 if (card == null) { problems.Add("Deck contains an empty card slot."); continue; }
+                realCount++;
                 if (!MeetsAttributeRequirement(deck, card))
                     problems.Add($"'{card.cardName}' requires STR {card.strRequired}/INT {card.intRequired}/WIS {card.wisRequired}/DEX {card.dexRequired}, which the deck's attributes don't meet.");
             }
         }
+
+        if (realCount < MinDeckSize)
+            problems.Add($"Deck has {realCount} cards; minimum is {MinDeckSize}.");
 
         return problems.Count == 0;
     }
