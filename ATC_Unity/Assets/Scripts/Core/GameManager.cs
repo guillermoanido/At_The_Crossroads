@@ -18,6 +18,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private Key passPriorityKey = Key.Tab;
 
     private bool skipNextDraw;
+    private int queuedExtraTurns;
 
     private const float MinScale = 0.2f;
     private const float MaxScale = 1.5f;
@@ -141,9 +142,25 @@ public class GameManager : MonoBehaviour
             case GamePhase.Main1:   BeginPhase(GamePhase.Combat);  break;
             case GamePhase.Combat:  BeginPhase(GamePhase.Main2);   break;
             case GamePhase.Main2:   BeginPhase(GamePhase.EndTurn); break;
-            case GamePhase.EndTurn: SwitchTurn();                  break;
+            case GamePhase.EndTurn: EndTurn();                     break;
         }
     }
+
+    private void EndTurn()
+    {
+        if (queuedExtraTurns > 0)
+        {
+            queuedExtraTurns--;
+            ControllingPlayer = ActivePlayer;   // priority returns to the player taking the extra turn
+            Debug.Log($"[Phase] {ActivePlayer.name} takes an extra turn.");
+            BeginPhase(GamePhase.Draw);   // same active player goes again
+        }
+        else SwitchTurn();
+    }
+
+    // Queued by an effect (e.g. Light Speed): the current player takes another turn once this one ends.
+    // Counts, so two extra-turn sources in one turn grant two extra turns.
+    public void QueueExtraTurn() => queuedExtraTurns++;
 
     public void GoToCombat()
     {

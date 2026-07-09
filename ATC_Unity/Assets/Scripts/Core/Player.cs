@@ -281,6 +281,28 @@ public class Player : MonoBehaviour
 
     public void SendToExile(GameObject cardGO) => MoveCardToZone(cardGO, exileZone);
 
+    // Discards all of this player's equipment (weapon/accessory/armour) currently in play.
+    public void DestroyAllEquipment()
+    {
+        foreach (var zone in EquipmentZones())
+        {
+            if (zone == null) continue;
+            foreach (var cardGO in new List<GameObject>(zone.Cards))
+                SendToDiscard(cardGO);
+        }
+    }
+
+    // Discards `count` cards from this player's hand (from the newest; choice UI is future work).
+    public void DiscardFromHand(int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            var cards = handManager.cardsInHand;
+            if (cards.Count == 0) return;
+            SendToDiscard(cards[cards.Count - 1]);
+        }
+    }
+
     public void ReturnToHand(GameObject cardGO)
     {
         if (cardGO == null) return;
@@ -345,6 +367,14 @@ public class Player : MonoBehaviour
         yield return accessoryZone;
         yield return talentZone;
         yield return auraZone;
+    }
+
+    // "Equipment" keyword zones = weapon, accessory, armour (see Card.IsEquipment).
+    private IEnumerable<CardZone> EquipmentZones()
+    {
+        yield return weaponZone;
+        yield return accessoryZone;
+        yield return armourZone;
     }
 
     #endregion

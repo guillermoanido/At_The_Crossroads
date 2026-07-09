@@ -52,9 +52,21 @@ public class EffectRunner : MonoBehaviour
     {
         switch (a.effect)
         {
-            case EffectKind.DestroyTargetCard:  yield return PickOpponentCard(ctx, t => t.Owner.SendToDiscard(t.gameObject)); break;
-            case EffectKind.ReturnTargetToHand: yield return PickOpponentCard(ctx, t => t.Owner.ReturnToHand(t.gameObject)); break;
-            default: ApplyInstant(a, ctx); break;
+            case EffectKind.DestroyTargetCard:
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentCardInPlay(t, ctx.controller), t => t.Owner.SendToDiscard(t.gameObject));
+                break;
+            case EffectKind.DestroyTargetEquipment:
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller), t => t.Owner.SendToDiscard(t.gameObject));
+                break;
+            case EffectKind.ReturnTargetToHand:
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentCardInPlay(t, ctx.controller), t => t.Owner.ReturnToHand(t.gameObject));
+                break;
+            case EffectKind.ReturnTargetEquipmentToHand:
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller), t => t.Owner.ReturnToHand(t.gameObject));
+                break;
+            default:
+                ApplyInstant(a, ctx);
+                break;
         }
     }
 
@@ -90,18 +102,30 @@ public class EffectRunner : MonoBehaviour
             case EffectKind.ReduceIncomingDamage:
                 if (ctx.damage != null) ctx.damage.amount = Mathf.Max(0, ctx.damage.amount - a.amount);
                 break;
+            case EffectKind.LoseStamina:
+                if (ctx.controller != null) ctx.controller.AdjustStamina(-a.amount);
+                break;
+            case EffectKind.DestroyAllOpponentEquipment:
+                if (ctx.opponent != null) ctx.opponent.DestroyAllEquipment();
+                break;
+            case EffectKind.OpponentDiscards:
+                if (ctx.opponent != null) ctx.opponent.DiscardFromHand(a.amount);
+                break;
+            case EffectKind.TakeExtraTurn:
+                if (GameManager.Instance != null) GameManager.Instance.QueueExtraTurn();
+                break;
         }
     }
 
     // ---- Targeted effects (async — wait for the player to pick) --------
 
-    private IEnumerator PickOpponentCard(EffectContext ctx, System.Action<Targetable> onChosen)
+    private IEnumerator PickTarget(EffectContext ctx, System.Predicate<Targetable> filter, System.Action<Targetable> onChosen)
     {
         if (TargetingService.Instance == null) yield break;
 
         bool done = false;
         TargetingService.Instance.Request(
-            filter: t => TargetFilters.IsOpponentCardInPlay(t, ctx.controller),
+            filter: filter,
             onChosen: t => { if (t != null && t.Owner != null) onChosen(t); done = true; },
             onCancel: () => done = true);
 

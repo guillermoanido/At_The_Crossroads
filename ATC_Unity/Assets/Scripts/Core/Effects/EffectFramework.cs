@@ -47,6 +47,12 @@ public enum EffectKind
     ReduceIncomingDamage, // amount → reduces the current DamageEvent (use with OnControllerTakeDamage)
     DestroyTargetCard,    // pick an opponent card in play → discard it
     ReturnTargetToHand,   // pick an opponent card in play → bounce it to their hand
+    LoseStamina,          // amount → controller loses stamina (floored at 0)
+    DestroyTargetEquipment,     // pick an opponent equipment (weapon/accessory/armour) in play → discard it
+    DestroyAllOpponentEquipment,// discard all of the opponent's equipment in play (no target needed)
+    OpponentDiscards,     // amount → opponent discards that many cards from hand
+    TakeExtraTurn,        // controller takes another turn after this one
+    ReturnTargetEquipmentToHand,// pick an opponent equipment in play → bounce it to their hand
 }
 
 public enum EffectTarget
@@ -97,6 +103,9 @@ public static class TargetFilters
 
     public static bool IsOpponentCardInPlay(Targetable t, Player controller)
         => IsCardInPlay(t) && t.Owner != null && t.Owner != controller;
+
+    public static bool IsOpponentEquipmentInPlay(Targetable t, Player controller)
+        => IsOpponentCardInPlay(t, controller) && t.Data != null && t.Data.IsEquipment;
 }
 
 #endregion

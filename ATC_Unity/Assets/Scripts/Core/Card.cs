@@ -72,6 +72,10 @@ public class Card : ScriptableObject
         }
     }
 
+    // "Equipment" keyword = Weapon, Accessory or Armour (targeted by Sunder, Disarm, Earthquake…).
+    public bool IsEquipment
+        => cardType == CardType.Weapon || cardType == CardType.Accesory || cardType == CardType.Armour;
+
     // The first Activated ability, if any — what a click on this card in play uses.
     public CardAbility FirstActivated()
     {
