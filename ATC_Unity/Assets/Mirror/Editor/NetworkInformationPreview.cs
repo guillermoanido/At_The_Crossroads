@@ -60,7 +60,10 @@ namespace Mirror
         }
 
         GUIContent title;
-        Styles styles = new Styles();
+        // Do NOT construct Styles here: the preview is created (via reflection) outside any GUI
+        // context on selection, where EditorStyles.label is null → NullReferenceException.
+        // OnPreviewGUI lazily builds it during Repaint, which is a valid GUI context.
+        Styles styles;
 
         public override GUIContent GetPreviewTitle()
         {
