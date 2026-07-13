@@ -2,9 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// A deliberately dumb opponent so Player 2 does *something* while you test cards. On its turn it plays
-// every card it can afford, activates its board permanents, and clicks through the phases. No strategy.
-// Setup: put this on a GameObject (e.g. Player 2) and drag Player 2 into `me`.
 public class SimpleAI : MonoBehaviour
 {
     [Tooltip("The player this AI controls (usually Player 2).")]
@@ -20,9 +17,19 @@ public class SimpleAI : MonoBehaviour
 
     private void Update()
     {
-        if (!autoPlay || me == null || takingTurn) return;
+        if (!autoPlay || me == null) return;
         var gm = GameManager.Instance;
-        if (gm != null && gm.ActivePlayer == me && gm.IsControllingPlayer(me))
+        if (gm == null) return;
+
+        var stack = GameStack.Instance;
+        if (stack != null && !stack.IsEmpty && gm.IsControllingPlayer(me))
+        {
+            stack.Pass();
+            return;
+        }
+
+        bool stackClear = stack == null || stack.IsEmpty;
+        if (!takingTurn && gm.ActivePlayer == me && gm.IsControllingPlayer(me) && stackClear)
             StartCoroutine(TakeTurn());
     }
 
@@ -31,21 +38,22 @@ public class SimpleAI : MonoBehaviour
         takingTurn = true;
         var gm = GameManager.Instance;
 
-        int safety = 30;   // hard stop against any phase-loop surprise (e.g. chained extra turns)
+        int safety = 30;
         while (gm.ActivePlayer == me && safety-- > 0)
         {
             yield return new WaitForSeconds(stepDelay);
-            if (gm.ActivePlayer != me) break;   // turn/priority changed under us
+            if (gm.ActivePlayer != me) break;
 
             switch (gm.CurrentPhase)
             {
                 case GameManager.GamePhase.Main1:
                 case GameManager.GamePhase.Main2:
                     yield return PlayHand();
-                    ActivateBoard();
+                    yield return ActivateBoard();
+                    yield return WaitForStack();
                     gm.AdvancePhase();
                     break;
-                default:                         // Combat / EndTurn (Draw auto-advances to Main1)
+                default:
                     gm.AdvancePhase();
                     break;
             }
@@ -54,41 +62,54 @@ public class SimpleAI : MonoBehaviour
         takingTurn = false;
     }
 
-    // Try to play every card in hand; TryPlayCard rejects anything unaffordable or illegal this phase.
     private IEnumerator PlayHand()
     {
-        if (me.handManager == null) yield break;
-        foreach (var cardGO in new List<GameObject>(me.handManager.cardsInHand))
+        if (me.handManager == null) { Debug.LogWarning($"[AI] {name}: no HandManager wired on 'me'."); yield break; }
+
+        var hand = new List<GameObject>(me.handManager.cardsInHand);
+        int played = 0;
+        foreach (var cardGO in hand)
         {
             if (cardGO == null) continue;
             var data = cardGO.GetComponent<CardDisplay>()?.cardData;
             if (data == null) continue;
             if (me.TryPlayCard(cardGO, data))
+            {
+                played++;
+                yield return WaitForStack();
                 yield return new WaitForSeconds(stepDelay);
+            }
         }
+        Debug.Log($"[AI] {me.name} played {played}/{hand.Count} card(s) in {GameManager.Instance.CurrentPhase}.");
     }
 
-    // Activate any board permanent with an activated ability (deals damage / gains block, etc.).
-    private void ActivateBoard()
+    private IEnumerator ActivateBoard()
     {
-        ActivateZone(me.weaponZone);
-        ActivateZone(me.shieldZone);
-        ActivateZone(me.armourZone);
-        ActivateZone(me.equipmentZone);
-        ActivateZone(me.accessoryZone);
-        ActivateZone(me.talentZone);
-        ActivateZone(me.auraZone);
+        yield return ActivateZone(me.weaponZone);
+        yield return ActivateZone(me.shieldZone);
+        yield return ActivateZone(me.armourZone);
+        yield return ActivateZone(me.equipmentZone);
+        yield return ActivateZone(me.accessoryZone);
+        yield return ActivateZone(me.talentZone);
+        yield return ActivateZone(me.auraZone);
     }
 
-    private void ActivateZone(CardZone zone)
+    private IEnumerator ActivateZone(CardZone zone)
     {
-        if (zone == null) return;
+        if (zone == null) yield break;
         foreach (var cardGO in new List<GameObject>(zone.Cards))
         {
             if (cardGO == null) continue;
             var data = cardGO.GetComponent<CardDisplay>()?.cardData;
-            if (data != null && data.FirstActivated() != null)
-                me.TryActivateCard(cardGO, data);
+            if (data != null && data.FirstActivated() != null && me.TryActivateCard(cardGO, data))
+                yield return WaitForStack();
         }
+    }
+
+    private IEnumerator WaitForStack()
+    {
+        var stack = GameStack.Instance;
+        if (stack == null) yield break;
+        yield return new WaitUntil(() => stack.IsEmpty);
     }
 }

@@ -11,8 +11,14 @@ public class DiscardBrowser : MonoBehaviour
     [SerializeField] private Transform listContainer;
     [SerializeField] private GameObject cardPrefab;
 
+    [Tooltip("Fallback size used only if there is no GameManager; normally driven by GameManager.popupCardScale so all popups share one control.")]
     [Range(0.2f, 1.5f)]
     [SerializeField] private float cardScale = 1f;
+
+    [Tooltip("Optional in-panel slider to resize the browsed cards live. Auto-wired on Awake.")]
+    [SerializeField] private Slider scaleSlider;
+
+    private float Scale => GameManager.Instance != null ? GameManager.Instance.popupCardScale : cardScale;
 
     [Header("Grid (applied to a GridLayoutGroup on List Container if present)")]
     [SerializeField] private Vector2 cellSize = new Vector2(180f, 252f);
@@ -26,7 +32,25 @@ public class DiscardBrowser : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        WireScaleSlider();
         Close();
+    }
+
+    private void WireScaleSlider()
+    {
+        if (scaleSlider == null) return;
+        scaleSlider.minValue = 0.2f;
+        scaleSlider.maxValue = 1.5f;
+        scaleSlider.SetValueWithoutNotify(Scale);
+        scaleSlider.onValueChanged.AddListener(SetCardScale);
+    }
+
+    public void SetCardScale(float value)
+    {
+        value = Mathf.Clamp(value, 0.2f, 1.5f);
+        if (GameManager.Instance != null) GameManager.Instance.popupCardScale = value;
+        else cardScale = value;
+        ApplyCardScaleToSpawned();
     }
 
     private void Update()
@@ -77,7 +101,7 @@ public class DiscardBrowser : MonoBehaviour
 
     private void ApplyCardScaleToSpawned()
     {
-        Vector3 target = Vector3.one * cardScale;
+        Vector3 target = Vector3.one * Scale;
         foreach (var go in spawned)
         {
             if (go == null) continue;
@@ -103,7 +127,7 @@ public class DiscardBrowser : MonoBehaviour
     private GameObject SpawnEntry(Card data)
     {
         var clone = Instantiate(cardPrefab, listContainer);
-        clone.transform.localScale = Vector3.one * cardScale;
+        clone.transform.localScale = Vector3.one * Scale;
 
         var display = clone.GetComponent<CardDisplay>();
         if (display != null)

@@ -21,7 +21,6 @@ public class DeckManager : MonoBehaviour
         if (allCards.Count == 0) Debug.LogWarning($"[Deck] {name} has 0 cards.");
     }
 
-    // Populates this play-deck from a built DeckDefinition, warning (but still loading) if it's illegal.
     public void LoadFromDefinition(DeckDefinition deck)
     {
         if (deck == null) return;

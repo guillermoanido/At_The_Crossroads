@@ -22,8 +22,6 @@ public class CardDisplay : MonoBehaviour
 
     public bool IsFaceUp { get; private set; } = true;
 
-    // The prefab's default front sprite, captured before anything can swap in the card back,
-    // so flipping face-up again always restores the front art.
     private Sprite frontSprite;
     private bool capturedFront;
 

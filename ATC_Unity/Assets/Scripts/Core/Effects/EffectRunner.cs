@@ -2,9 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// The single place that runs every card's effects. Each Card's `abilities` list says WHAT it does
-// and WHEN (its trigger); this resolves those against the game state. Add a new card behaviour by
-// adding one EffectKind case here — no per-effect asset files.
 public class EffectRunner : MonoBehaviour
 {
     public static EffectRunner Instance { get; private set; }
@@ -15,17 +12,13 @@ public class EffectRunner : MonoBehaviour
         Instance = this;
     }
 
-    // ---- Entry points --------------------------------------------------
 
-    // Run every ability on `card` whose trigger matches, in order. Async: target-picking pauses here.
     public void FireAbilities(Card card, EffectContext ctx, Trigger trigger)
     {
         var matches = Collect(card, trigger);
         if (matches.Count > 0) StartCoroutine(RunSequence(matches, ctx));
     }
 
-    // Synchronous variant for damage-modifying triggers (OnControllerTakeDamage) that must resolve
-    // before HP is touched. Only instant effects are meaningful here; target-picking is skipped.
     public void FireAbilitiesImmediate(Card card, EffectContext ctx, Trigger trigger)
     {
         foreach (var a in Collect(card, trigger))
@@ -70,7 +63,6 @@ public class EffectRunner : MonoBehaviour
         }
     }
 
-    // ---- Instant effects (safe to call synchronously) ------------------
 
     private void ApplyInstant(CardAbility a, EffectContext ctx)
     {
@@ -117,7 +109,6 @@ public class EffectRunner : MonoBehaviour
         }
     }
 
-    // ---- Targeted effects (async — wait for the player to pick) --------
 
     private IEnumerator PickTarget(EffectContext ctx, System.Predicate<Targetable> filter, System.Action<Targetable> onChosen)
     {

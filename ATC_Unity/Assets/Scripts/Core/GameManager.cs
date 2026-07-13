@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public class GameManager : MonoBehaviour
 {
@@ -13,9 +12,6 @@ public class GameManager : MonoBehaviour
     [Header("Setup")]
     [Tooltip("How many cards each player holds at the start of the game.")]
     [SerializeField] private int startingHandSize = 6;
-
-    [Tooltip("Key the non-active player presses to take priority for a reflex response (and again to hand it back). Local-multiplayer stand-in for per-client input.")]
-    [SerializeField] private Key passPriorityKey = Key.Tab;
 
     private bool skipNextDraw;
     private int queuedExtraTurns;
@@ -33,11 +29,15 @@ public class GameManager : MonoBehaviour
     [Tooltip("Size of cards resting in the discard and exile piles.")]
     [Range(MinScale, MaxScale)] public float discardExileCardScale = 1f;
 
+    [Tooltip("Card size inside the discard/exile browser and scry popups — one control for all of them.")]
+    [Range(MinScale, MaxScale)] public float popupCardScale = 1f;
+
+    [Tooltip("Horizontal gap between cards in the play-area zones so multiple cards spread out instead of overlapping. Tune live.")]
+    public float playAreaCardSpacing = 200f;
+
     public Player ActivePlayer { get; private set; }
     public GamePhase CurrentPhase { get; private set; }
 
-    // Who may currently touch cards. Defaults to the active player; the non-active player can take it
-    // temporarily (a reflex window) via passPriorityKey. Networked play will drive this from client identity.
     public Player ControllingPlayer { get; private set; }
     public bool IsControllingPlayer(Player player) => ControllingPlayer == player;
 
@@ -65,24 +65,9 @@ public class GameManager : MonoBehaviour
 
     private void Start() => StartGame();
 
-    private void Update()
-    {
-        ApplyLiveScales();
-        HandlePriorityInput();
-    }
+    private void Update() => ApplyLiveScales();
 
-    // Local-multiplayer stand-in: the non-active player grabs priority to answer with a reflex, then hands it back.
-    private void HandlePriorityInput()
-    {
-        if (Keyboard.current == null) return;
-        if (Keyboard.current[passPriorityKey].wasPressedThisFrame) TogglePriority();
-    }
-
-    public void TogglePriority()
-    {
-        ControllingPlayer = (ControllingPlayer == ActivePlayer) ? Opponent(ActivePlayer) : ActivePlayer;
-        Debug.Log($"[Priority] {(ControllingPlayer != null ? ControllingPlayer.name : "<none>")} now has priority.");
-    }
+    public void GivePriorityTo(Player player) => ControllingPlayer = player;
 
     private void ApplyLiveScales()
     {
@@ -126,7 +111,7 @@ public class GameManager : MonoBehaviour
         if (player2 != null) player2.deckManager.Shuffle();
         DealOpeningHands();
         SetActivePlayer(player1);
-        skipNextDraw = true;   // the first player skips the draw on their very first turn
+        skipNextDraw = true;
         BeginPhase(GamePhase.Draw);
     }
 
@@ -153,15 +138,13 @@ public class GameManager : MonoBehaviour
         if (queuedExtraTurns > 0)
         {
             queuedExtraTurns--;
-            ControllingPlayer = ActivePlayer;   // priority returns to the player taking the extra turn
+            ControllingPlayer = ActivePlayer;
             Debug.Log($"[Phase] {ActivePlayer.name} takes an extra turn.");
-            BeginPhase(GamePhase.Draw);   // same active player goes again
+            BeginPhase(GamePhase.Draw);
         }
         else SwitchTurn();
     }
 
-    // Queued by an effect (e.g. Light Speed): the current player takes another turn once this one ends.
-    // Counts, so two extra-turn sources in one turn grant two extra turns.
     public void QueueExtraTurn() => queuedExtraTurns++;
 
     public void GoToCombat()
@@ -200,7 +183,7 @@ public class GameManager : MonoBehaviour
 
     private void ResolveDrawPhase()
     {
-        ResolveUpkeep();   // clears block, refills stamina, untaps, fires start-of-turn abilities
+        ResolveUpkeep();
         if (skipNextDraw) skipNextDraw = false;
         else ActivePlayer.DrawCard();
         BeginPhase(GamePhase.Main1);
@@ -215,6 +198,6 @@ public class GameManager : MonoBehaviour
     private void SetActivePlayer(Player player)
     {
         ActivePlayer = player;
-        ControllingPlayer = player;   // priority returns to whoever's turn it is
+        ControllingPlayer = player;
     }
 }

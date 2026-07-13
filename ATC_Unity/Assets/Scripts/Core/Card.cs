@@ -51,7 +51,6 @@ public class Card : ScriptableObject
         Channel
     }
 
-    // Permanents stay on the board when played; everything else resolves and goes to the discard.
     public bool IsPermanent
     {
         get
@@ -65,19 +64,17 @@ public class Card : ScriptableObject
                 case CardType.Accesory:
                 case CardType.Talent:
                 case CardType.Aura:
-                case CardType.Condition:   // persistent effect — stays in play (e.g. Fracture, Broken Stance)
+                case CardType.Condition:
                     return true;
-                default: // Attack, Spell, Skill, Consumable
+                default:
                     return false;
             }
         }
     }
 
-    // "Equipment" keyword = Weapon, Accessory or Armour (targeted by Sunder, Disarm, Earthquake…).
     public bool IsEquipment
         => cardType == CardType.Weapon || cardType == CardType.Accesory || cardType == CardType.Armour;
 
-    // The first Activated ability, if any — what a click on this card in play uses.
     public CardAbility FirstActivated()
     {
         if (abilities == null) return null;

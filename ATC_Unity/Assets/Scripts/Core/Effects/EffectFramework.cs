@@ -3,14 +3,13 @@ using UnityEngine;
 
 #region Triggers & Events
 
-// When an ability happens. One card can carry several abilities with different triggers.
 public enum Trigger
 {
-    OnPlay,                 // fires the moment the card is played / enters play
-    Activated,              // fires when the controller clicks the card while it's in play
-    OnUpkeep,               // fires at the start of the controller's turn
-    OnControllerTakeDamage, // fires while the controller is about to take damage (can reduce it)
-    OnDestroyed,            // fires when the card leaves play for the discard
+    OnPlay,
+    Activated,
+    OnUpkeep,
+    OnControllerTakeDamage,
+    OnDestroyed,
 }
 
 public class DamageEvent
@@ -30,29 +29,36 @@ public class EffectContext
     public DamageEvent damage;
 }
 
+public class StackItem
+{
+    public Player controller;
+    public GameObject sourceCardGO;
+    public Card sourceCardData;
+    public Trigger trigger;
+}
+
 #endregion
 
 #region Ability Data (authored on each Card)
 
-// What an ability does. Instant kinds resolve synchronously; the Target* kinds pause for a pick.
 public enum EffectKind
 {
     None,
-    DealDamage,           // amount → defender's TakeDamage (target chooses opponent/controller)
-    GainBlock,            // amount → controller's Defense shield
-    GainLife,             // amount → controller's HP
-    DrawCards,            // amount cards → controller draws
-    GainStamina,          // amount → controller's stamina
-    Scry,                 // amount → opens the Scry panel on the controller's deck
-    ReduceIncomingDamage, // amount → reduces the current DamageEvent (use with OnControllerTakeDamage)
-    DestroyTargetCard,    // pick an opponent card in play → discard it
-    ReturnTargetToHand,   // pick an opponent card in play → bounce it to their hand
-    LoseStamina,          // amount → controller loses stamina (floored at 0)
-    DestroyTargetEquipment,     // pick an opponent equipment (weapon/accessory/armour) in play → discard it
-    DestroyAllOpponentEquipment,// discard all of the opponent's equipment in play (no target needed)
-    OpponentDiscards,     // amount → opponent discards that many cards from hand
-    TakeExtraTurn,        // controller takes another turn after this one
-    ReturnTargetEquipmentToHand,// pick an opponent equipment in play → bounce it to their hand
+    DealDamage,
+    GainBlock,
+    GainLife,
+    DrawCards,
+    GainStamina,
+    Scry,
+    ReduceIncomingDamage,
+    DestroyTargetCard,
+    ReturnTargetToHand,
+    LoseStamina,
+    DestroyTargetEquipment,
+    DestroyAllOpponentEquipment,
+    OpponentDiscards,
+    TakeExtraTurn,
+    ReturnTargetEquipmentToHand,
 }
 
 public enum EffectTarget
@@ -61,7 +67,6 @@ public enum EffectTarget
     Controller,
 }
 
-// A single thing a card does. Authored as a list on the Card asset — no per-effect files.
 [Serializable]
 public class CardAbility
 {

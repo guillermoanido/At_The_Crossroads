@@ -24,7 +24,6 @@ public class TargetingService : MonoBehaviour
     {
         if (IsActive)
         {
-            // Cancel (not silently drop) so a waiting effect coroutine unblocks instead of hanging.
             Debug.LogWarning("[Targeting] Request ignored — already active.");
             onCancel?.Invoke();
             return;

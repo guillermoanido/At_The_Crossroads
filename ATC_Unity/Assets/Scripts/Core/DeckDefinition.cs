@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// A built deck: the chosen cards plus the attribute allocation that gates which cards are legal.
-// Deck-building UI (later) edits this asset; DeckRules validates it; DeckManager plays from it.
 [CreateAssetMenu(fileName = "New Deck", menuName = "Deck")]
 public class DeckDefinition : ScriptableObject
 {

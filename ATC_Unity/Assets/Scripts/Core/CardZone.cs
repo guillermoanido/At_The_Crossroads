@@ -11,8 +11,6 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
 
     public ZoneKind Kind => kind;
 
-    // Set at runtime by the owning Player from its zone wiring — that's the source of truth, so the
-    // per-zone Inspector dropdown doesn't have to be set by hand (and can't drift out of sync).
     public void SetKind(ZoneKind newKind) => kind = newKind;
 
     [Tooltip("0 = unlimited")]
@@ -57,15 +55,36 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
 
     public void RefreshLayout()
     {
-        Vector3 scale = Vector3.one * ConfiguredCardScale();
-        Vector2 offset = EffectiveStackOffset(Cards.Count);
-        for (int i = 0; i < Cards.Count; i++)
+        int count = Cards.Count;
+        if (count == 0) return;
+
+        float cardScale = ConfiguredCardScale();
+        Vector3 scale = Vector3.one * cardScale;
+
+        if (kind == ZoneKind.Discard || kind == ZoneKind.Exile)
+        {
+            Vector2 offset = EffectiveStackOffset(count);
+            for (int i = 0; i < count; i++)
+            {
+                var t = Cards[i].transform;
+                t.localPosition = (Vector3)(offset * i);
+                if (t.localScale != scale) t.localScale = scale;
+            }
+            return;
+        }
+
+        float spacing = PlayAreaSpacing() * cardScale;
+        float center = (count - 1) / 2f;
+        for (int i = 0; i < count; i++)
         {
             var t = Cards[i].transform;
-            t.localPosition = (Vector3)(offset * i);
+            t.localPosition = new Vector3(spacing * (i - center), 0f, 0f);
             if (t.localScale != scale) t.localScale = scale;
         }
     }
+
+    private float PlayAreaSpacing()
+        => GameManager.Instance != null ? GameManager.Instance.playAreaCardSpacing : 200f;
 
     public void IncreaseMaxSlots(int delta)
     {

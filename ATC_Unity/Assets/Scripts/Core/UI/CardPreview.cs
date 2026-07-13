@@ -1,9 +1,5 @@
 using UnityEngine;
 
-// Singleton overlay that shows a large, readable copy of a card.
-// The hover that drives it lives on each card in CardBoardActions (which is present on
-// every card and enabled in exactly the right places — hand and board, off in the
-// discard/exile piles and on browser clones).
 public class CardPreview : MonoBehaviour
 {
     public static CardPreview Instance { get; private set; }

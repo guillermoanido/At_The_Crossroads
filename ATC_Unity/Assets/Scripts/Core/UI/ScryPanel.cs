@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class ScryPanel : MonoBehaviour
 {
@@ -11,11 +12,17 @@ public class ScryPanel : MonoBehaviour
     [SerializeField] private Transform listContainer;
     [SerializeField] private GameObject cardPrefab;
 
+    [Tooltip("Fallback size used only if there is no GameManager; normally driven by GameManager.popupCardScale so all popups share one control.")]
     [Range(0.2f, 1.5f)]
     [SerializeField] private float cardScale = 0.6f;
 
     [Tooltip("Multiplier applied to the selected entry's scale so it's visually distinguished.")]
     [SerializeField] private float selectedScaleBoost = 1.15f;
+
+    [Tooltip("Optional in-panel slider to resize the scry cards live. Auto-wired on Awake.")]
+    [SerializeField] private Slider scaleSlider;
+
+    private float Scale => GameManager.Instance != null ? GameManager.Instance.popupCardScale : cardScale;
 
     [Header("Order Number")]
     [Tooltip("Font size of the '1, 2, 3…' order badge stamped on each scry card, in the card's own canvas units.")]
@@ -30,7 +37,30 @@ public class ScryPanel : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        WireScaleSlider();
         Close();
+    }
+
+    private void Update()
+    {
+        if (spawned.Count > 0) ApplySelectionHighlight();
+    }
+
+    private void WireScaleSlider()
+    {
+        if (scaleSlider == null) return;
+        scaleSlider.minValue = 0.2f;
+        scaleSlider.maxValue = 1.5f;
+        scaleSlider.SetValueWithoutNotify(Scale);
+        scaleSlider.onValueChanged.AddListener(SetCardScale);
+    }
+
+    public void SetCardScale(float value)
+    {
+        value = Mathf.Clamp(value, 0.2f, 1.5f);
+        if (GameManager.Instance != null) GameManager.Instance.popupCardScale = value;
+        else cardScale = value;
+        ApplySelectionHighlight();
     }
 
     public void Open(DeckManager deck, int count)
@@ -99,7 +129,7 @@ public class ScryPanel : MonoBehaviour
     private GameObject SpawnEntry(int index, Card card)
     {
         var clone = Instantiate(cardPrefab, listContainer);
-        clone.transform.localScale = Vector3.one * cardScale;
+        clone.transform.localScale = Vector3.one * Scale;
 
         var display = clone.GetComponent<CardDisplay>();
         if (display != null)
@@ -114,8 +144,6 @@ public class ScryPanel : MonoBehaviour
         return clone;
     }
 
-    // Stamps the card's position in the scry order (1 = next to be drawn) onto its top-left corner.
-    // Rebuilt every reorder, so the numbers always reflect the current order.
     private void AddOrderLabel(GameObject clone, int order, CardDisplay display)
     {
         var canvas = clone.GetComponentInChildren<Canvas>(true);
@@ -155,7 +183,7 @@ public class ScryPanel : MonoBehaviour
     {
         for (int i = 0; i < spawned.Count; i++)
         {
-            float scale = (i == selectedIndex) ? cardScale * selectedScaleBoost : cardScale;
+            float scale = (i == selectedIndex) ? Scale * selectedScaleBoost : Scale;
             spawned[i].transform.localScale = Vector3.one * scale;
         }
     }

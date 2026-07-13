@@ -53,8 +53,6 @@ public class Player : MonoBehaviour
         Defense = maxDefense;
     }
 
-    // Zone kind = whichever Player field the zone is wired to. Fixes card sizing (discard/exile vs
-    // play-area sliders) and in-play/targeting checks without hand-setting each zone's dropdown.
     private void ConfigureZoneKinds()
     {
         SetZoneKind(discardZone,   CardZone.ZoneKind.Discard);
@@ -77,14 +75,12 @@ public class Player : MonoBehaviour
 
     #region Stats
 
-    // maxHp is the starting value, not a ceiling — healing can push HP above it.
     public void AdjustHp(int delta) => CurrentHp = Mathf.Max(0, CurrentHp + delta);
 
     public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
 
     public void ResetStamina() => Stamina = maxStamina;
 
-    // Defense is a shield pool. maxDefense of 0 means "no upper cap" so cards can stack it freely.
     public void AdjustDefense(int delta)
     {
         int next = Defense + delta;
@@ -113,7 +109,6 @@ public class Player : MonoBehaviour
         FireTriggersOnBoard(Trigger.OnControllerTakeDamage, dmg);
         if (dmg.amount <= 0) return;
 
-        // Shield pool soaks the hit first, then whatever is left spills onto HP.
         int absorbed = Mathf.Min(Defense, dmg.amount);
         if (absorbed > 0)
         {
@@ -132,10 +127,10 @@ public class Player : MonoBehaviour
 
     public void ResolveUpkeep()
     {
-        Defense = 0;      // Block is retained through the opponent's turn, then lost at the start of yours.
-        ResetStamina();   // Refill BEFORE start-of-turn abilities so their +/- stamina isn't overwritten.
+        Defense = 0;
+        ResetStamina();
         UntapBoard();
-        FireTriggersOnBoard(Trigger.OnUpkeep, null);   // "Start of turn" abilities (Iron Plate, Dual Wielding, Fracture…) fire here
+        FireTriggersOnBoard(Trigger.OnUpkeep, null);
     }
 
     private void UntapBoard()
@@ -170,13 +165,10 @@ public class Player : MonoBehaviour
 
         Debug.Log($"[Play] {name} played {cardData.cardName} → {zone.name}");
 
-        if (EffectRunner.Instance != null)
-            EffectRunner.Instance.FireAbilities(cardData, MakeContext(cardGO, cardData), Trigger.OnPlay);
-
+        PushToStack(cardGO, cardData, Trigger.OnPlay);
         return true;
     }
 
-    // Click a permanent already in play to use its Activated ability (Dagger, Kite Shield, …).
     public bool TryActivateCard(GameObject cardGO, Card cardData)
     {
         if (cardGO == null || cardData == null) return false;
@@ -184,7 +176,6 @@ public class Player : MonoBehaviour
         var ability = cardData.FirstActivated();
         if (ability == null) return false;
 
-        // You can only activate your own permanents, and only while you hold priority.
         if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(this))
         {
             Debug.Log($"[Activate] {name} doesn't have priority.");
@@ -220,11 +211,47 @@ public class Player : MonoBehaviour
         SpendStamina(ability.activationCost);
         if (ability.tapToActivate && tap != null) tap.Tap();
 
-        if (EffectRunner.Instance != null)
-            EffectRunner.Instance.FireAbilities(cardData, MakeContext(cardGO, cardData), Trigger.Activated);
-
         Debug.Log($"[Activate] {name} activated {cardData.cardName}.");
+        PushToStack(cardGO, cardData, Trigger.Activated);
         return true;
+    }
+
+    private void PushToStack(GameObject cardGO, Card cardData, Trigger trigger)
+    {
+        if (GameStack.Instance != null)
+            GameStack.Instance.Push(new StackItem { controller = this, sourceCardGO = cardGO, sourceCardData = cardData, trigger = trigger });
+        else if (EffectRunner.Instance != null)
+            EffectRunner.Instance.FireAbilities(cardData, MakeContext(cardGO, cardData), trigger);
+    }
+
+    public bool HasReflexResponse()
+    {
+        if (handManager != null)
+        {
+            foreach (var cardGO in handManager.cardsInHand)
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                if (data != null && data.speedType == Card.SpeedType.Reflex && Stamina >= data.energyCost)
+                    return true;
+            }
+        }
+
+        foreach (var zone in BoardZones())
+        {
+            if (zone == null) continue;
+            foreach (var cardGO in zone.Cards)
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                var ability = data != null ? data.FirstActivated() : null;
+                if (ability == null || ability.activationSpeed != Card.SpeedType.Reflex) continue;
+                if (Stamina < ability.activationCost) continue;
+                var tap = cardGO.GetComponent<CardTapState>();
+                bool alreadyTapped = ability.tapToActivate && tap != null && tap.IsTapped;
+                if (!alreadyTapped) return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsBoardZone(CardZone zone)
@@ -232,8 +259,6 @@ public class Player : MonoBehaviour
 
     private bool CanPlay(Card card, out string reason)
     {
-        // Authoritative priority gate: even if a drag began before priority changed hands, the
-        // play itself is blocked unless you currently hold priority.
         if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(this))
         {
             reason = "You don't have priority";
@@ -287,7 +312,7 @@ public class Player : MonoBehaviour
             case Card.CardType.Accesory:  return accessoryZone;
             case Card.CardType.Talent:    return talentZone;
             case Card.CardType.Aura:      return auraZone;
-            case Card.CardType.Condition: return auraZone;   // conditions live with auras (persistent effects)
+            case Card.CardType.Condition: return auraZone;
             default:                      return discardZone;
         }
     }
@@ -304,7 +329,6 @@ public class Player : MonoBehaviour
 
     public void SendToExile(GameObject cardGO) => MoveCardToZone(cardGO, exileZone);
 
-    // Discards all of this player's equipment (weapon/accessory/armour) currently in play.
     public void DestroyAllEquipment()
     {
         foreach (var zone in EquipmentZones())
@@ -315,7 +339,6 @@ public class Player : MonoBehaviour
         }
     }
 
-    // Discards `count` cards from this player's hand (from the newest; choice UI is future work).
     public void DiscardFromHand(int count)
     {
         for (int i = 0; i < count; i++)
@@ -334,7 +357,6 @@ public class Player : MonoBehaviour
         var data = cardGO.GetComponent<CardDisplay>()?.cardData;
         if (data == null) return;
 
-        // The hovered card is about to be destroyed; drop any preview of it first.
         if (CardPreview.Instance != null) CardPreview.Instance.Hide();
 
         RemoveFromAnyZone(cardGO);
@@ -392,7 +414,6 @@ public class Player : MonoBehaviour
         yield return auraZone;
     }
 
-    // "Equipment" keyword zones = weapon, accessory, armour (see Card.IsEquipment).
     private IEnumerable<CardZone> EquipmentZones()
     {
         yield return weaponZone;
@@ -403,6 +424,8 @@ public class Player : MonoBehaviour
     #endregion
 
     #region Effect Plumbing
+
+    public EffectContext BuildContext(GameObject cardGO, Card cardData) => MakeContext(cardGO, cardData);
 
     private EffectContext MakeContext(GameObject cardGO, Card cardData) => new EffectContext
     {
@@ -427,7 +450,6 @@ public class Player : MonoBehaviour
                 var ctx = MakeContext(cardGO, data);
                 ctx.damage = dmg;
 
-                // Damage triggers must resolve synchronously (before HP changes); others may await targeting.
                 if (trigger == Trigger.OnControllerTakeDamage)
                     EffectRunner.Instance.FireAbilitiesImmediate(data, ctx, trigger);
                 else
@@ -460,8 +482,6 @@ public class Player : MonoBehaviour
         var drag = cardGO.GetComponent<DragUIObject>();
         if (drag != null) drag.enabled = false;
 
-        // A card played/moved off the cursor never gets an OnPointerExit (its hover handler is
-        // about to be disabled), so dismiss any hover preview of it here to avoid a stuck overlay.
         if (CardPreview.Instance != null) CardPreview.Instance.Hide();
     }
 

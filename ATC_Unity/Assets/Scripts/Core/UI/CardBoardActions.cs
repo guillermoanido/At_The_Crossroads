@@ -22,8 +22,6 @@ public class CardBoardActions : MonoBehaviour, IPointerClickHandler, IPointerEnt
         if (CardPreview.Instance != null) CardPreview.Instance.Hide();
     }
 
-    // Your own hand is only previewable on your turn; opponent hand cards are face-down
-    // (so IsFaceUp already blocks them). Cards on the board are previewable by anyone.
     private bool IsViewableByActivePlayer()
     {
         var owner = GetOwner();
@@ -50,8 +48,6 @@ public class CardBoardActions : MonoBehaviour, IPointerClickHandler, IPointerEnt
 
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            // Double-click a permanent in play to use its activated ability (pays cost, taps it).
-            // Single clicks do nothing, so cards in hand and normal clicks won't accidentally tap.
             if (eventData.clickCount >= 2)
             {
                 var clicker = GetOwner();
@@ -65,7 +61,6 @@ public class CardBoardActions : MonoBehaviour, IPointerClickHandler, IPointerEnt
         var owner = GetOwner();
         if (owner == null) return;
 
-        // You can only send your OWN board cards away, and only while you hold priority.
         if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(owner)) return;
 
         if (eventData.button == PointerEventData.InputButton.Right)

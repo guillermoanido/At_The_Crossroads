@@ -3,13 +3,6 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-// One-click authoring of the whole card library from the design spec. Type-safe (no hand-written
-// YAML), idempotent (updates existing assets by name, keeping their GUIDs; creates the rest).
-// Run from the Unity menu: ATC ▸ Generate Card Library.
-//
-// Cards whose text needs systems we haven't built yet (Strike, Bleed/Burn/Divine Shield, cost
-// reducers, equip-limits, face-down, copy/steal, speed grants) get correct stats + description but
-// EMPTY abilities for now — they exist and are playable, they just don't do their special thing yet.
 public static class CardLibraryGenerator
 {
     private const string Folder = "Assets/Card Data";
@@ -30,8 +23,6 @@ public static class CardLibraryGenerator
         Debug.Log($"[CardLibrary] Done — {created} created, {updated} updated in {Folder}.");
     }
 
-    // Adds the Targetable component to the card prefab if it's missing (needed for Destroy/Return-target
-    // effects). Uses the safe prefab-contents API rather than editing YAML by hand.
     [MenuItem("ATC/Ensure Card Prefab Components")]
     public static void EnsureCardPrefab()
     {
@@ -66,7 +57,6 @@ public static class CardLibraryGenerator
         else { EditorUtility.SetDirty(card); updated++; }
     }
 
-    // ---- Ability builders ---------------------------------------------
 
     private static List<CardAbility> A(params CardAbility[] xs) => new List<CardAbility>(xs);
 
@@ -95,53 +85,51 @@ public static class CardLibraryGenerator
         public List<CardAbility> abilities;
     }
 
-    // ---- The card library (from the design spec) ----------------------
-    // Abilities are filled where the current effect vocabulary supports them; deferred cards note why.
 
     private static List<Def> Warriors() => new List<Def>
     {
         W("Brace",            Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 5,  "Gain 4 Block.",                                        A(OnPlay(EffectKind.GainBlock, 4))),
-        W("Light Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 1, 5,  "Strike"),                                              // needs Strike
+        W("Light Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 1, 5,  "Strike"),
         W("Kite Shield",      Card.CardType.Shield,    Card.SpeedType.Channel, 2, 6,  "Activate (Reflex) — Gain 2 Block",                     A(Activated(EffectKind.GainBlock, 2, Card.SpeedType.Reflex))),
-        W("Heavy Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 2, 7,  "Strike: +2 Damage"),                                   // needs Strike
+        W("Heavy Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 2, 7,  "Strike: +2 Damage"),
         W("Second Wind",      Card.CardType.Skill,     Card.SpeedType.Channel, 1, 8,  "Gain 2 Stamina.",                                      A(OnPlay(EffectKind.GainStamina, 2))),
         W("Iron Skin",        Card.CardType.Talent,    Card.SpeedType.Channel, 2, 8,  "Start of turn: Gain 1 Block",                          A(Upkeep(EffectKind.GainBlock, 1))),
-        W("Hurl",             Card.CardType.Attack,    Card.SpeedType.Channel, 1, 8,  "Strike: Deal double damage. Destroy this weapon."),    // needs Strike
+        W("Hurl",             Card.CardType.Attack,    Card.SpeedType.Channel, 1, 8,  "Strike: Deal double damage. Destroy this weapon."),
         W("Sunder",           Card.CardType.Skill,     Card.SpeedType.Channel, 2, 9,  "Destroy target equipment.",                            A(OnPlay(EffectKind.DestroyTargetEquipment, 0))),
-        W("Unrelenting Rage", Card.CardType.Talent,    Card.SpeedType.Channel, 2, 9,  "Your attacks cost 1 less."),                           // needs cost modifiers
-        W("Layered Armour",   Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "Start of turn: Lose 1 Stamina. You can equip 1 more Armour.", A(Upkeep(EffectKind.LoseStamina, 1))), // equip-limit part deferred
+        W("Unrelenting Rage", Card.CardType.Talent,    Card.SpeedType.Channel, 2, 9,  "Your attacks cost 1 less."),
+        W("Layered Armour",   Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "Start of turn: Lose 1 Stamina. You can equip 1 more Armour.", A(Upkeep(EffectKind.LoseStamina, 1))),
         W("Tower Shield",     Card.CardType.Shield,    Card.SpeedType.Channel, 3, 10, "Activate (Reflex) — Gain 3 Block",                     A(Activated(EffectKind.GainBlock, 3, Card.SpeedType.Reflex))),
         W("Greatclub",        Card.CardType.Weapon,    Card.SpeedType.Channel, 3, 10, "Activate (Channel) — Deal 4 damage.",                  A(Activated(EffectKind.DealDamage, 4, Card.SpeedType.Channel, EffectTarget.Opponent))),
         W("Iron Plate",       Card.CardType.Armour,    Card.SpeedType.Channel, 3, 10, "Start of turn: Gain 3 Block",                          A(Upkeep(EffectKind.GainBlock, 3))),
-        W("Broken Stance",    Card.CardType.Condition, Card.SpeedType.Channel, 1, 11, "Whenever you gain Block, reduce it by 2."),            // needs block-modifier conditions
+        W("Broken Stance",    Card.CardType.Condition, Card.SpeedType.Channel, 1, 11, "Whenever you gain Block, reduce it by 2."),
         W("Monolith",         Card.CardType.Weapon,    Card.SpeedType.Channel, 3, 12, "Activate (Channel) Pay 1 Stamina — Deal 7 damage.",    A(Activated(EffectKind.DealDamage, 7, Card.SpeedType.Channel, EffectTarget.Opponent, 1))),
-        W("Skull Splitter",   Card.CardType.Attack,    Card.SpeedType.Channel, 3, 13, "Strike: Opponent discard 3 cards.",                    A(OnPlay(EffectKind.OpponentDiscards, 3, EffectTarget.Opponent))), // Strike wrapper simplified
+        W("Skull Splitter",   Card.CardType.Attack,    Card.SpeedType.Channel, 3, 13, "Strike: Opponent discard 3 cards.",                    A(OnPlay(EffectKind.OpponentDiscards, 3, EffectTarget.Opponent))),
         W("Fracture",         Card.CardType.Condition, Card.SpeedType.Channel, 3, 13, "Start of turn: Lose 1 Stamina.",                       A(Upkeep(EffectKind.LoseStamina, 1))),
         W("Earthquake",       Card.CardType.Attack,    Card.SpeedType.Channel, 4, 17, "Destroy all opponent's equipment.",                    A(OnPlay(EffectKind.DestroyAllOpponentEquipment, 0, EffectTarget.Opponent))),
     };
 
     private static List<Def> Rogues() => new List<Def>
     {
-        R("Flow State",       Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 5,  "Your next card is cast at reflex speed. Scry 1.",      A(OnPlay(EffectKind.Scry, 1))), // speed-grant part deferred
+        R("Flow State",       Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 5,  "Your next card is cast at reflex speed. Scry 1.",      A(OnPlay(EffectKind.Scry, 1))),
         R("Dagger",           Card.CardType.Weapon,    Card.SpeedType.Channel, 1, 5,  "Activate (Channel) — Deal 1 damage.",                  A(Activated(EffectKind.DealDamage, 1, Card.SpeedType.Channel, EffectTarget.Opponent))),
-        R("Evasive Step",     Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 5,  "Avoid the next source of direct damage this turn."),   // needs Evade
+        R("Evasive Step",     Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 5,  "Avoid the next source of direct damage this turn."),
         R("Quick Jab",        Card.CardType.Attack,    Card.SpeedType.Reflex,  0, 5,  "Deal 3 damage.",                                       A(OnPlay(EffectKind.DealDamage, 3, EffectTarget.Opponent))),
-        R("Open Veins",       Card.CardType.Skill,     Card.SpeedType.Channel, 1, 6,  "Strike: -1 Damage. Apply Bleed 1."),                   // needs Strike + Bleed
-        R("Pickpocket",       Card.CardType.Skill,     Card.SpeedType.Channel, 2, 7,  "Look at your opponent's hand, take one card."),        // needs steal-from-hand
-        R("Hidden Dagger",    Card.CardType.Weapon,    Card.SpeedType.Channel, 2, 8,  "Activate (Reflex) — Deal 1 damage. +2 if you played a Reflex card this turn.", A(Activated(EffectKind.DealDamage, 1, Card.SpeedType.Reflex, EffectTarget.Opponent))), // conditional +2 deferred
-        R("Backstab",         Card.CardType.Skill,     Card.SpeedType.Reflex,  1, 8,  "Strike: Reflex"),                                      // needs Strike
-        R("Slingshot",        Card.CardType.Weapon,    Card.SpeedType.Channel, 1, 8,  "Activate (Channel) Discard 1 Equipment or remove one from discard — Deal 3 damage.", A(Activated(EffectKind.DealDamage, 3, Card.SpeedType.Channel, EffectTarget.Opponent))), // resource cost deferred
+        R("Open Veins",       Card.CardType.Skill,     Card.SpeedType.Channel, 1, 6,  "Strike: -1 Damage. Apply Bleed 1."),
+        R("Pickpocket",       Card.CardType.Skill,     Card.SpeedType.Channel, 2, 7,  "Look at your opponent's hand, take one card."),
+        R("Hidden Dagger",    Card.CardType.Weapon,    Card.SpeedType.Channel, 2, 8,  "Activate (Reflex) — Deal 1 damage. +2 if you played a Reflex card this turn.", A(Activated(EffectKind.DealDamage, 1, Card.SpeedType.Reflex, EffectTarget.Opponent))),
+        R("Backstab",         Card.CardType.Skill,     Card.SpeedType.Reflex,  1, 8,  "Strike: Reflex"),
+        R("Slingshot",        Card.CardType.Weapon,    Card.SpeedType.Channel, 1, 8,  "Activate (Channel) Discard 1 Equipment or remove one from discard — Deal 3 damage.", A(Activated(EffectKind.DealDamage, 3, Card.SpeedType.Channel, EffectTarget.Opponent))),
         R("Disarm",           Card.CardType.Skill,     Card.SpeedType.Reflex,  1, 9,  "Return target equipment to opponent's hand.",          A(OnPlay(EffectKind.ReturnTargetEquipmentToHand, 0))),
-        R("Bait and Switch",  Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 9,  "Return target Equipment you own to hand. You may play 1 Equipment from your hand without paying its cost."), // needs free-play
-        R("Keen Instinct",    Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "All your cards can be played at Reflex speed."),       // needs speed grant
-        R("Dual Wielding",    Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "Start of turn: Lose 1 Stamina. You can equip 1 more weapon.", A(Upkeep(EffectKind.LoseStamina, 1))), // equip-limit deferred
-        R("Double Strike",    Card.CardType.Attack,    Card.SpeedType.Channel, 2, 10, "Strike. Strike."),                                     // needs Strike
-        R("Sleight of Hand",  Card.CardType.Skill,     Card.SpeedType.Channel, 2, 10, "Copy an equipment from opponent, destroy the original."), // needs copy
-        R("Muscle Memory",    Card.CardType.Talent,    Card.SpeedType.Channel, 2, 11, "Your skills cost 1 less."),                            // needs cost modifiers
-        R("Set-Up",           Card.CardType.Skill,     Card.SpeedType.Channel, 0, 12, "Place a card face down, next turn play it with cost 0."), // needs face-down
-        R("Dagger Dance",     Card.CardType.Skill,     Card.SpeedType.Channel, 1, 12, "For the rest of the turn, your skills have: Strike."), // needs Strike
+        R("Bait and Switch",  Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 9,  "Return target Equipment you own to hand. You may play 1 Equipment from your hand without paying its cost."),
+        R("Keen Instinct",    Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "All your cards can be played at Reflex speed."),
+        R("Dual Wielding",    Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "Start of turn: Lose 1 Stamina. You can equip 1 more weapon.", A(Upkeep(EffectKind.LoseStamina, 1))),
+        R("Double Strike",    Card.CardType.Attack,    Card.SpeedType.Channel, 2, 10, "Strike. Strike."),
+        R("Sleight of Hand",  Card.CardType.Skill,     Card.SpeedType.Channel, 2, 10, "Copy an equipment from opponent, destroy the original."),
+        R("Muscle Memory",    Card.CardType.Talent,    Card.SpeedType.Channel, 2, 11, "Your skills cost 1 less."),
+        R("Set-Up",           Card.CardType.Skill,     Card.SpeedType.Channel, 0, 12, "Place a card face down, next turn play it with cost 0."),
+        R("Dagger Dance",     Card.CardType.Skill,     Card.SpeedType.Channel, 1, 12, "For the rest of the turn, your skills have: Strike."),
         R("Light Speed",      Card.CardType.Skill,     Card.SpeedType.Channel, 2, 17, "Take an extra turn after this one.",                    A(OnPlay(EffectKind.TakeExtraTurn, 0))),
-        R("Defensive Stance", Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "You gain +1 Block from all sources."),                 // needs block-modifier conditions
+        R("Defensive Stance", Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "You gain +1 Block from all sources."),
     };
 }
 #endif
