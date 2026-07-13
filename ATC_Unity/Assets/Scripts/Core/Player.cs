@@ -47,9 +47,30 @@ public class Player : MonoBehaviour
     private void Awake()
     {
         handManager.SetOwner(this);
+        ConfigureZoneKinds();
         Stamina = maxStamina;
         CurrentHp = maxHp;
         Defense = maxDefense;
+    }
+
+    // Zone kind = whichever Player field the zone is wired to. Fixes card sizing (discard/exile vs
+    // play-area sliders) and in-play/targeting checks without hand-setting each zone's dropdown.
+    private void ConfigureZoneKinds()
+    {
+        SetZoneKind(discardZone,   CardZone.ZoneKind.Discard);
+        SetZoneKind(exileZone,     CardZone.ZoneKind.Exile);
+        SetZoneKind(weaponZone,    CardZone.ZoneKind.Weapon);
+        SetZoneKind(shieldZone,    CardZone.ZoneKind.Shield);
+        SetZoneKind(armourZone,    CardZone.ZoneKind.Armour);
+        SetZoneKind(equipmentZone, CardZone.ZoneKind.Equipment);
+        SetZoneKind(accessoryZone, CardZone.ZoneKind.Accessory);
+        SetZoneKind(talentZone,    CardZone.ZoneKind.Talent);
+        SetZoneKind(auraZone,      CardZone.ZoneKind.Aura);
+    }
+
+    private static void SetZoneKind(CardZone zone, CardZone.ZoneKind kind)
+    {
+        if (zone != null) zone.SetKind(kind);
     }
 
     #endregion
@@ -111,9 +132,10 @@ public class Player : MonoBehaviour
 
     public void ResolveUpkeep()
     {
-        Defense = 0;   // Block is retained through the opponent's turn, then lost at the start of yours.
+        Defense = 0;      // Block is retained through the opponent's turn, then lost at the start of yours.
+        ResetStamina();   // Refill BEFORE start-of-turn abilities so their +/- stamina isn't overwritten.
         UntapBoard();
-        FireTriggersOnBoard(Trigger.OnUpkeep, null);   // "Start of turn" abilities (e.g. Iron Plate) fire here
+        FireTriggersOnBoard(Trigger.OnUpkeep, null);   // "Start of turn" abilities (Iron Plate, Dual Wielding, Fracture…) fire here
     }
 
     private void UntapBoard()
@@ -265,6 +287,7 @@ public class Player : MonoBehaviour
             case Card.CardType.Accesory:  return accessoryZone;
             case Card.CardType.Talent:    return talentZone;
             case Card.CardType.Aura:      return auraZone;
+            case Card.CardType.Condition: return auraZone;   // conditions live with auras (persistent effects)
             default:                      return discardZone;
         }
     }

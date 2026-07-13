@@ -10,25 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 40b8a1e9e397e2d4eb0c781ad9e0f987, type: 3}
-  m_Name: Brace
+  m_Name: Pickpocket
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Brace
+  cardName: Pickpocket
   cardType: 8
-  speedType: 0
-  energyCost: 0
+  speedType: 1
+  energyCost: 2
   deckCost: 1
   damageMin: 0
   damageMax: 0
-  strRequired: 5
+  strRequired: 0
   intRequired: 0
   wisRequired: 0
-  dexRequired: 0
-  effectDescription: Gain 4 Block.
-  abilities:
-  - trigger: 0
-    effect: 2
-    amount: 4
-    target: 1
-    activationSpeed: 1
-    activationCost: 0
-    tapToActivate: 0
+  dexRequired: 7
+  effectDescription: Look at your opponent's hand, take one card.
+  abilities: []

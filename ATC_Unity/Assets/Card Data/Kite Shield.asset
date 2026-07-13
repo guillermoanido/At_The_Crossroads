@@ -23,7 +23,7 @@ MonoBehaviour:
   intRequired: 0
   wisRequired: 0
   dexRequired: 0
-  effectDescription: Activate (Reflex) - Gain 2 Block
+  effectDescription: "Activate (Reflex) \u2014 Gain 2 Block"
   abilities:
   - trigger: 1
     effect: 2

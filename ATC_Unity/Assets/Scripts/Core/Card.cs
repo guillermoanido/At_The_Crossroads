@@ -65,8 +65,9 @@ public class Card : ScriptableObject
                 case CardType.Accesory:
                 case CardType.Talent:
                 case CardType.Aura:
+                case CardType.Condition:   // persistent effect — stays in play (e.g. Fracture, Broken Stance)
                     return true;
-                default: // Attack, Spell, Skill, Consumable, Condition
+                default: // Attack, Spell, Skill, Consumable
                     return false;
             }
         }

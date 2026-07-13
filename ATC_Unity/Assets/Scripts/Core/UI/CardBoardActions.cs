@@ -50,13 +50,16 @@ public class CardBoardActions : MonoBehaviour, IPointerClickHandler, IPointerEnt
 
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            /*var owner = GetOwner();
-            var data = GetComponent<CardDisplay>()?.cardData;
-            if (owner != null && data != null && data.FirstActivated() != null)
-                owner.TryActivateCard(gameObject, data);   // pays cost, taps, resolves the ability
-            else
-                GetComponent<CardTapState>().Toggle();     // no activated ability → just a manual tap
-            */return;
+            // Double-click a permanent in play to use its activated ability (pays cost, taps it).
+            // Single clicks do nothing, so cards in hand and normal clicks won't accidentally tap.
+            if (eventData.clickCount >= 2)
+            {
+                var clicker = GetOwner();
+                var card = GetComponent<CardDisplay>()?.cardData;
+                if (clicker != null && card != null && card.FirstActivated() != null)
+                    clicker.TryActivateCard(gameObject, card);
+            }
+            return;
         }
 
         var owner = GetOwner();

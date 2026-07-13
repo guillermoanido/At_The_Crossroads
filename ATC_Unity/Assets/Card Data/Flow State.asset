@@ -23,7 +23,7 @@ MonoBehaviour:
   intRequired: 0
   wisRequired: 0
   dexRequired: 5
-  effectDescription: Your next card is cast at Reflex speed, Scry 1
+  effectDescription: Your next card is cast at reflex speed. Scry 1.
   abilities:
   - trigger: 0
     effect: 6

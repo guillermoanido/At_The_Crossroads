@@ -10,16 +10,25 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 40b8a1e9e397e2d4eb0c781ad9e0f987, type: 3}
-  m_Name: 1 1
+  m_Name: Light Speed
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: 
-  cardType: 2
+  cardName: Light Speed
+  cardType: 8
   speedType: 1
-  energyCost: 0
+  energyCost: 2
+  deckCost: 1
   damageMin: 0
   damageMax: 0
   strRequired: 0
   intRequired: 0
   wisRequired: 0
-  dexRequired: 0
-  effectDescription: 
+  dexRequired: 17
+  effectDescription: Take an extra turn after this one.
+  abilities:
+  - trigger: 0
+    effect: 14
+    amount: 0
+    target: 1
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0

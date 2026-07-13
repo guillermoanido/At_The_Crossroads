@@ -16,10 +16,12 @@ MonoBehaviour:
   cardType: 2
   speedType: 1
   energyCost: 1
+  deckCost: 1
   damageMin: 0
   damageMax: 0
   strRequired: 5
   intRequired: 0
   wisRequired: 0
   dexRequired: 0
-  effectDescription: STRIKE
+  effectDescription: Strike
+  abilities: []

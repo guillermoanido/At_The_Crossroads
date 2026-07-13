@@ -11,6 +11,10 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
 
     public ZoneKind Kind => kind;
 
+    // Set at runtime by the owning Player from its zone wiring — that's the source of truth, so the
+    // per-zone Inspector dropdown doesn't have to be set by hand (and can't drift out of sync).
+    public void SetKind(ZoneKind newKind) => kind = newKind;
+
     [Tooltip("0 = unlimited")]
     [SerializeField] private int maxSlots = 0;
 

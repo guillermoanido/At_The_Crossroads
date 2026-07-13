@@ -122,6 +122,8 @@ public class GameManager : MonoBehaviour
 
     private void StartGame()
     {
+        if (player1 != null) player1.deckManager.Shuffle();
+        if (player2 != null) player2.deckManager.Shuffle();
         DealOpeningHands();
         SetActivePlayer(player1);
         skipNextDraw = true;   // the first player skips the draw on their very first turn
@@ -198,10 +200,9 @@ public class GameManager : MonoBehaviour
 
     private void ResolveDrawPhase()
     {
-        ResolveUpkeep();
+        ResolveUpkeep();   // clears block, refills stamina, untaps, fires start-of-turn abilities
         if (skipNextDraw) skipNextDraw = false;
         else ActivePlayer.DrawCard();
-        ActivePlayer.ResetStamina();
         BeginPhase(GamePhase.Main1);
     }
 

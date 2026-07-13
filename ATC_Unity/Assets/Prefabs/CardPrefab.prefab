@@ -422,6 +422,7 @@ GameObject:
   - component: {fileID: 8868570741376095974}
   - component: {fileID: 3732127952234977518}
   - component: {fileID: 7409353890812760010}
+  - component: {fileID: 4937307638419395582}
   m_Layer: 0
   m_Name: CardPrefab
   m_TagString: Untagged
@@ -557,6 +558,19 @@ MonoBehaviour:
   selectScale: 1.1
   hoverRotationLerpSpeed: 10
   glowEffect: {fileID: 2672906429611623316}
+--- !u!114 &4937307638419395582
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3209648541388789147}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Targetable
+  highlight: {fileID: 0}
 --- !u!1 &4405700288174397769
 GameObject:
   m_ObjectHideFlags: 0

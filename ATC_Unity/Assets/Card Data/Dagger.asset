@@ -23,7 +23,7 @@ MonoBehaviour:
   intRequired: 0
   wisRequired: 0
   dexRequired: 5
-  effectDescription: Activate (Channel) - Deal 1 Damage
+  effectDescription: "Activate (Channel) \u2014 Deal 1 damage."
   abilities:
   - trigger: 1
     effect: 1
