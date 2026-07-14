@@ -51,27 +51,6 @@ public class Card : ScriptableObject
         Channel
     }
 
-    public bool IsPermanent
-    {
-        get
-        {
-            switch (cardType)
-            {
-                case CardType.Weapon:
-                case CardType.Armour:
-                case CardType.Shield:
-                case CardType.Equipment:
-                case CardType.Accesory:
-                case CardType.Talent:
-                case CardType.Aura:
-                case CardType.Condition:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-    }
-
     public bool IsEquipment
         => cardType == CardType.Weapon || cardType == CardType.Accesory || cardType == CardType.Armour;
 

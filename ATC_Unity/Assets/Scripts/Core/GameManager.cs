@@ -147,11 +147,6 @@ public class GameManager : MonoBehaviour
 
     public void QueueExtraTurn() => queuedExtraTurns++;
 
-    public void GoToCombat()
-    {
-        if (CurrentPhase == GamePhase.Main1) BeginPhase(GamePhase.Combat);
-    }
-
     public void TakeExtraTurn()
     {
         Debug.Log($"[Phase] {ActivePlayer.name} takes an extra turn!");

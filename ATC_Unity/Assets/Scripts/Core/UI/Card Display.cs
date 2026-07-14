@@ -74,4 +74,11 @@ public class CardDisplay : MonoBehaviour
         if (speedText != null) speedText.text = cardData.speedType.ToString();
         if (costText != null) costText.text = cardData.energyCost.ToString();
     }
+
+    public static void DisableGameplayInteractions(GameObject clone)
+    {
+        var move = clone.GetComponent<CardMovement>();       if (move != null) move.enabled = false;
+        var drag = clone.GetComponent<DragUIObject>();        if (drag != null) drag.enabled = false;
+        var actions = clone.GetComponent<CardBoardActions>(); if (actions != null) actions.enabled = false;
+    }
 }

@@ -28,8 +28,11 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
     [Tooltip("Maximum vertical extent the stack may occupy. 0 = unlimited.")]
     [SerializeField] private float maxLayoutHeight = 0f;
 
-    [Tooltip("If true, left-clicking the zone opens DiscardBrowser to inspect its cards. Set on Discard / Exile zones.")]
+    [Tooltip("If true, left-clicking the zone opens its browser panel to inspect its cards. Set on Discard / Exile zones.")]
     [SerializeField] private bool browseOnClick = false;
+
+    [Tooltip("The per-player browser panel this zone opens when clicked. Assign this player's discard/exile browser.")]
+    [SerializeField] private DiscardBrowser browser;
 
     [Tooltip("The player who owns this zone. Used by DiscardBrowser to return cards to the right hand.")]
     [SerializeField] private Player owner;
@@ -86,16 +89,11 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
     private float PlayAreaSpacing()
         => GameManager.Instance != null ? GameManager.Instance.playAreaCardSpacing : 200f;
 
-    public void IncreaseMaxSlots(int delta)
-    {
-        if (maxSlots > 0) maxSlots += delta;
-    }
-
     public void OnPointerClick(PointerEventData eventData)
     {
         if (!browseOnClick) return;
         if (eventData.button != PointerEventData.InputButton.Left) return;
-        if (DiscardBrowser.Instance != null) DiscardBrowser.Instance.Open(this);
+        if (browser != null) browser.Open(this);
     }
 
     private Vector2 EffectiveStackOffset(int totalCards)

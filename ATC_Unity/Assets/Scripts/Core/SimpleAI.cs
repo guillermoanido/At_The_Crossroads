@@ -21,14 +21,27 @@ public class SimpleAI : MonoBehaviour
         var gm = GameManager.Instance;
         if (gm == null) return;
 
+        if (me.scryPanel != null && me.scryPanel.IsOpen)
+        {
+            me.scryPanel.Confirm();
+            return;
+        }
+
+        var targeting = TargetingService.Instance;
+        if (targeting != null && targeting.IsActive && targeting.Requester == me)
+        {
+            if (!targeting.ChooseFirstValid()) targeting.Cancel();
+            return;
+        }
+
         var stack = GameStack.Instance;
-        if (stack != null && !stack.IsEmpty && gm.IsControllingPlayer(me))
+        if (stack != null && !stack.IsEmpty && !stack.IsResolving && gm.IsControllingPlayer(me))
         {
             stack.Pass();
             return;
         }
 
-        bool stackClear = stack == null || stack.IsEmpty;
+        bool stackClear = stack == null || !stack.IsBusy;
         if (!takingTurn && gm.ActivePlayer == me && gm.IsControllingPlayer(me) && stackClear)
             StartCoroutine(TakeTurn());
     }
@@ -110,6 +123,6 @@ public class SimpleAI : MonoBehaviour
     {
         var stack = GameStack.Instance;
         if (stack == null) yield break;
-        yield return new WaitUntil(() => stack.IsEmpty);
+        yield return new WaitUntil(() => !stack.IsBusy);
     }
 }

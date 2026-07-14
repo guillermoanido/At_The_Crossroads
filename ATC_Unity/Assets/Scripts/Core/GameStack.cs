@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,8 +10,12 @@ public class GameStack : MonoBehaviour
     [SerializeField] private GameObject passButton;
 
     private readonly List<StackItem> items = new List<StackItem>();
+    private bool running;
+    private bool forceResolveTop;
 
     public bool IsEmpty => items.Count == 0;
+    public bool IsResolving => running;
+    public bool IsBusy => !IsEmpty || running;
     public int Count => items.Count;
 
     private void Awake()
@@ -25,38 +30,50 @@ public class GameStack : MonoBehaviour
         if (item == null || item.controller == null) return;
         items.Add(item);
         if (GameManager.Instance != null) GameManager.Instance.GivePriorityTo(item.controller.Opponent);
-        Settle();
+        UpdatePassButton();
+        Advance();
     }
 
     public void Pass()
     {
-        if (IsEmpty) return;
-        ResolveTopOnce();
-        Settle();
+        if (IsEmpty || running) return;
+        forceResolveTop = true;
+        Advance();
     }
 
-    private void Settle()
+    private void Advance()
     {
-        int guard = 64;
-        while (!IsEmpty && guard-- > 0)
+        if (!running) StartCoroutine(RunLoop());
+    }
+
+    private IEnumerator RunLoop()
+    {
+        running = true;
+        UpdatePassButton();
+
+        while (!IsEmpty)
         {
             var responder = GameManager.Instance != null ? GameManager.Instance.ControllingPlayer : null;
-            if (responder != null && responder.HasReflexResponse()) break;
-            ResolveTopOnce();
+            bool canRespond = responder != null && responder.HasReflexResponse();
+
+            if (canRespond && !forceResolveTop) break;   // wait for the responder to Pass() or respond
+
+            forceResolveTop = false;
+            yield return ResolveTop();
         }
+
+        running = false;
         UpdatePassButton();
     }
 
-    private void ResolveTopOnce()
+    private IEnumerator ResolveTop()
     {
-        if (IsEmpty) return;
-
         int top = items.Count - 1;
         StackItem item = items[top];
         items.RemoveAt(top);
 
         if (item.controller != null && item.sourceCardData != null && EffectRunner.Instance != null)
-            EffectRunner.Instance.FireAbilities(
+            yield return EffectRunner.Instance.RunAbilities(
                 item.sourceCardData,
                 item.controller.BuildContext(item.sourceCardGO, item.sourceCardData),
                 item.trigger);
@@ -66,10 +83,12 @@ public class GameStack : MonoBehaviour
             Player next = IsEmpty ? GameManager.Instance.ActivePlayer : items[items.Count - 1].controller.Opponent;
             GameManager.Instance.GivePriorityTo(next);
         }
+        UpdatePassButton();
     }
 
     private void UpdatePassButton()
     {
-        if (passButton != null) passButton.SetActive(!IsEmpty);
+        // Shown only when the stack is holding — i.e. a response is possible, not mid-resolution.
+        if (passButton != null) passButton.SetActive(!IsEmpty && !running);
     }
 }

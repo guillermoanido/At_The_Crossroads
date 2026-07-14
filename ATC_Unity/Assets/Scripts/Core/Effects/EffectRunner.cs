@@ -15,8 +15,12 @@ public class EffectRunner : MonoBehaviour
 
     public void FireAbilities(Card card, EffectContext ctx, Trigger trigger)
     {
-        var matches = Collect(card, trigger);
-        if (matches.Count > 0) StartCoroutine(RunSequence(matches, ctx));
+        StartCoroutine(RunAbilities(card, ctx, trigger));
+    }
+
+    public IEnumerator RunAbilities(Card card, EffectContext ctx, Trigger trigger)
+    {
+        yield return RunSequence(Collect(card, trigger), ctx);
     }
 
     public void FireAbilitiesImmediate(Card card, EffectContext ctx, Trigger trigger)
@@ -57,6 +61,9 @@ public class EffectRunner : MonoBehaviour
             case EffectKind.ReturnTargetEquipmentToHand:
                 yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller), t => t.Owner.ReturnToHand(t.gameObject));
                 break;
+            case EffectKind.Scry:
+                yield return DoScry(ctx, a.amount);
+                break;
             default:
                 ApplyInstant(a, ctx);
                 break;
@@ -87,10 +94,6 @@ public class EffectRunner : MonoBehaviour
             case EffectKind.GainStamina:
                 if (ctx.controller != null) ctx.controller.AdjustStamina(a.amount);
                 break;
-            case EffectKind.Scry:
-                if (ScryPanel.Instance != null && ctx.controller != null && ctx.controller.deckManager != null)
-                    ScryPanel.Instance.Open(ctx.controller.deckManager, a.amount);
-                break;
             case EffectKind.ReduceIncomingDamage:
                 if (ctx.damage != null) ctx.damage.amount = Mathf.Max(0, ctx.damage.amount - a.amount);
                 break;
@@ -118,8 +121,18 @@ public class EffectRunner : MonoBehaviour
         TargetingService.Instance.Request(
             filter: filter,
             onChosen: t => { if (t != null && t.Owner != null) onChosen(t); done = true; },
-            onCancel: () => done = true);
+            onCancel: () => done = true,
+            requester: ctx.controller);
 
         yield return new WaitUntil(() => done);
+    }
+
+    private IEnumerator DoScry(EffectContext ctx, int count)
+    {
+        if (ctx.controller == null || ctx.controller.scryPanel == null || ctx.controller.deckManager == null) yield break;
+
+        var panel = ctx.controller.scryPanel;
+        panel.Open(ctx.controller.deckManager, count);
+        yield return new WaitUntil(() => !panel.IsOpen);
     }
 }

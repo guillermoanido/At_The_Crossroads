@@ -9,6 +9,9 @@ public class Player : MonoBehaviour
     public DeckManager deckManager;
     public PlayArea playArea;
 
+    [Tooltip("This player's own scry panel, opened by their Scry effects.")]
+    public ScryPanel scryPanel;
+
     [Header("Zones")]
     public CardZone discardZone;
     public CardZone weaponZone;
@@ -176,6 +179,8 @@ public class Player : MonoBehaviour
         var ability = cardData.FirstActivated();
         if (ability == null) return false;
 
+        if (GameStack.Instance != null && GameStack.Instance.IsResolving) return false;
+
         if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(this))
         {
             Debug.Log($"[Activate] {name} doesn't have priority.");
@@ -259,6 +264,12 @@ public class Player : MonoBehaviour
 
     private bool CanPlay(Card card, out string reason)
     {
+        if (GameStack.Instance != null && GameStack.Instance.IsResolving)
+        {
+            reason = "An effect is resolving";
+            return false;
+        }
+
         if (GameManager.Instance != null && !GameManager.Instance.IsControllingPlayer(this))
         {
             reason = "You don't have priority";
@@ -312,7 +323,7 @@ public class Player : MonoBehaviour
             case Card.CardType.Accesory:  return accessoryZone;
             case Card.CardType.Talent:    return talentZone;
             case Card.CardType.Aura:      return auraZone;
-            case Card.CardType.Condition: return auraZone;
+            case Card.CardType.Condition: return Opponent != null ? Opponent.auraZone : auraZone;
             default:                      return discardZone;
         }
     }
@@ -450,10 +461,7 @@ public class Player : MonoBehaviour
                 var ctx = MakeContext(cardGO, data);
                 ctx.damage = dmg;
 
-                if (trigger == Trigger.OnControllerTakeDamage)
-                    EffectRunner.Instance.FireAbilitiesImmediate(data, ctx, trigger);
-                else
-                    EffectRunner.Instance.FireAbilities(data, ctx, trigger);
+                EffectRunner.Instance.FireAbilitiesImmediate(data, ctx, trigger);
             }
         }
     }
@@ -468,7 +476,7 @@ public class Player : MonoBehaviour
         if (zone == null) return;
         if (zone.Kind == CardZone.ZoneKind.Discard || zone.Kind == CardZone.ZoneKind.Exile) return;
 
-        EffectRunner.Instance.FireAbilities(data, MakeContext(cardGO, data), trigger);
+        EffectRunner.Instance.FireAbilitiesImmediate(data, MakeContext(cardGO, data), trigger);
     }
 
     #endregion

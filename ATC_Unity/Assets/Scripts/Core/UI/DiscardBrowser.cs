@@ -5,20 +5,19 @@ using UnityEngine.UI;
 
 public class DiscardBrowser : MonoBehaviour
 {
-    public static DiscardBrowser Instance { get; private set; }
-
     [SerializeField] private GameObject root;
     [SerializeField] private Transform listContainer;
     [SerializeField] private GameObject cardPrefab;
 
-    [Tooltip("Fallback size used only if there is no GameManager; normally driven by GameManager.popupCardScale so all popups share one control.")]
+    [Tooltip("Base size of browsed cards. The GameManager's Popup Card Scale multiplies this, so all popups share one live control while keeping their own baseline.")]
     [Range(0.2f, 1.5f)]
     [SerializeField] private float cardScale = 1f;
 
-    [Tooltip("Optional in-panel slider to resize the browsed cards live. Auto-wired on Awake.")]
+    [Tooltip("Optional in-panel slider driving the shared Popup Card Scale (affects every popup). Auto-wired on Awake.")]
     [SerializeField] private Slider scaleSlider;
 
-    private float Scale => GameManager.Instance != null ? GameManager.Instance.popupCardScale : cardScale;
+    private static float PopupMultiplier => GameManager.Instance != null ? GameManager.Instance.popupCardScale : 1f;
+    private float Scale => cardScale * PopupMultiplier;
 
     [Header("Grid (applied to a GridLayoutGroup on List Container if present)")]
     [SerializeField] private Vector2 cellSize = new Vector2(180f, 252f);
@@ -31,7 +30,6 @@ public class DiscardBrowser : MonoBehaviour
 
     private void Awake()
     {
-        Instance = this;
         WireScaleSlider();
         Close();
     }
@@ -41,7 +39,7 @@ public class DiscardBrowser : MonoBehaviour
         if (scaleSlider == null) return;
         scaleSlider.minValue = 0.2f;
         scaleSlider.maxValue = 1.5f;
-        scaleSlider.SetValueWithoutNotify(Scale);
+        scaleSlider.SetValueWithoutNotify(PopupMultiplier);
         scaleSlider.onValueChanged.AddListener(SetCardScale);
     }
 
@@ -136,15 +134,9 @@ public class DiscardBrowser : MonoBehaviour
             display.SetFaceUp(true);
         }
 
-        DisableGameplayInteractions(clone);
+        CardDisplay.DisableGameplayInteractions(clone);
+        clone.AddComponent<HoverPreview>();
         return clone;
-    }
-
-    private static void DisableGameplayInteractions(GameObject clone)
-    {
-        var move = clone.GetComponent<CardMovement>();   if (move != null) move.enabled = false;
-        var drag = clone.GetComponent<DragUIObject>();   if (drag != null) drag.enabled = false;
-        var actions = clone.GetComponent<CardBoardActions>(); if (actions != null) actions.enabled = false;
     }
 
     private void Clear()

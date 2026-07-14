@@ -13,6 +13,7 @@ public class TargetingService : MonoBehaviour
     private readonly List<Targetable> currentValidTargets = new List<Targetable>();
 
     public bool IsActive => activeFilter != null;
+    public Player Requester { get; private set; }
 
     private void Awake()
     {
@@ -20,7 +21,7 @@ public class TargetingService : MonoBehaviour
         Instance = this;
     }
 
-    public void Request(Predicate<Targetable> filter, Action<Targetable> onChosen, Action onCancel = null)
+    public void Request(Predicate<Targetable> filter, Action<Targetable> onChosen, Action onCancel = null, Player requester = null)
     {
         if (IsActive)
         {
@@ -54,6 +55,7 @@ public class TargetingService : MonoBehaviour
         activeFilter = filter;
         activeOnChosen = onChosen;
         activeOnCancel = onCancel;
+        Requester = requester;
         Debug.Log($"[Targeting] Awaiting choice — {currentValidTargets.Count} valid target(s).");
     }
 
@@ -66,6 +68,12 @@ public class TargetingService : MonoBehaviour
         Clear();
         onChosen?.Invoke(t);
         return true;
+    }
+
+    public bool ChooseFirstValid()
+    {
+        if (!IsActive || currentValidTargets.Count == 0) return false;
+        return TryChoose(currentValidTargets[0]);
     }
 
     public void Cancel()
@@ -92,6 +100,7 @@ public class TargetingService : MonoBehaviour
         activeFilter = null;
         activeOnChosen = null;
         activeOnCancel = null;
+        Requester = null;
     }
 }
 
