@@ -69,6 +69,13 @@ public static class CardLibraryGenerator
     private static CardAbility Activated(EffectKind e, int amt, Card.SpeedType speed, EffectTarget t = EffectTarget.Controller, int cost = 0)
         => new CardAbility { trigger = Trigger.Activated, effect = e, amount = amt, target = t, activationSpeed = speed, activationCost = cost, tapToActivate = true };
 
+    private static CardAbility Strike(int multiplier = 1, int bonus = 0, bool destroysWeapon = false)
+        => new CardAbility
+        {
+            trigger = Trigger.OnPlay, effect = EffectKind.Strike, target = EffectTarget.Opponent, tapToActivate = false,
+            strikeDamageMultiplier = multiplier, strikeBonusDamage = bonus, strikeDestroysWeapon = destroysWeapon,
+        };
+
     private static Def W(string name, Card.CardType type, Card.SpeedType speed, int stamina, int str, string text, List<CardAbility> abilities = null)
         => new Def { name = name, type = type, speed = speed, stamina = stamina, str = str, dex = 0, text = text, abilities = abilities };
 
@@ -89,12 +96,12 @@ public static class CardLibraryGenerator
     private static List<Def> Warriors() => new List<Def>
     {
         W("Brace",            Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 5,  "Gain 4 Block.",                                        A(OnPlay(EffectKind.GainBlock, 4))),
-        W("Light Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 1, 5,  "Strike"),
+        W("Light Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 1, 5,  "Strike",                                               A(Strike())),
         W("Kite Shield",      Card.CardType.Shield,    Card.SpeedType.Channel, 2, 6,  "Activate (Reflex) — Gain 2 Block",                     A(Activated(EffectKind.GainBlock, 2, Card.SpeedType.Reflex))),
-        W("Heavy Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 2, 7,  "Strike: +2 Damage"),
+        W("Heavy Swing",      Card.CardType.Attack,    Card.SpeedType.Channel, 2, 7,  "Strike: +2 Damage",                                    A(Strike(bonus: 2))),
         W("Second Wind",      Card.CardType.Skill,     Card.SpeedType.Channel, 1, 8,  "Gain 2 Stamina.",                                      A(OnPlay(EffectKind.GainStamina, 2))),
         W("Iron Skin",        Card.CardType.Talent,    Card.SpeedType.Channel, 2, 8,  "Start of turn: Gain 1 Block",                          A(Upkeep(EffectKind.GainBlock, 1))),
-        W("Hurl",             Card.CardType.Attack,    Card.SpeedType.Channel, 1, 8,  "Strike: Deal double damage. Destroy this weapon."),
+        W("Hurl",             Card.CardType.Attack,    Card.SpeedType.Channel, 1, 8,  "Strike: Deal double damage. Destroy this weapon.",     A(Strike(multiplier: 2, destroysWeapon: true))),
         W("Sunder",           Card.CardType.Skill,     Card.SpeedType.Channel, 2, 9,  "Destroy target equipment.",                            A(OnPlay(EffectKind.DestroyTargetEquipment, 0))),
         W("Unrelenting Rage", Card.CardType.Talent,    Card.SpeedType.Channel, 2, 9,  "Your attacks cost 1 less."),
         W("Layered Armour",   Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "Start of turn: Lose 1 Stamina. You can equip 1 more Armour.", A(Upkeep(EffectKind.LoseStamina, 1))),

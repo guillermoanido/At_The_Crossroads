@@ -38,7 +38,13 @@ public class NetworkPlayerSeat : NetworkBehaviour
     public override void OnStopServer() => serverSeats.Remove(this);
 
     public override void OnStartLocalPlayer()
-        => Debug.Log($"[Net] I am the local player — I control seat {seatIndex}.");
+    {
+        Debug.Log($"[Net] I am the local player — I control seat {seatIndex}.");
+        // SyncVar hooks only fire on a CHANGE, so a false->false initial spawn never runs
+        // OnResponsePendingChanged and never hides the scene-default-active Pass button.
+        // Seed the local button from the current synced value (false at game start).
+        if (GameStack.Instance != null) GameStack.Instance.ShowPassButton(responsePending);
+    }
 
     #endregion
 

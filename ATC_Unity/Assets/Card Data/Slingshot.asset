@@ -33,3 +33,6 @@ MonoBehaviour:
     activationSpeed: 1
     activationCost: 0
     tapToActivate: 1
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0

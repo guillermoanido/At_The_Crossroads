@@ -64,6 +64,9 @@ public class EffectRunner : MonoBehaviour
             case EffectKind.Scry:
                 yield return DoScry(ctx, a.amount);
                 break;
+            case EffectKind.Strike:
+                yield return DoStrike(ctx, a);
+                break;
             default:
                 ApplyInstant(a, ctx);
                 break;
@@ -93,6 +96,9 @@ public class EffectRunner : MonoBehaviour
                 break;
             case EffectKind.GainStamina:
                 if (ctx.controller != null) ctx.controller.GainStamina(a.amount);
+                break;
+            case EffectKind.IncreaseMaxStamina:
+                if (ctx.controller != null) ctx.controller.IncreaseMaxStamina(a.amount);
                 break;
             case EffectKind.ReduceIncomingDamage:
                 if (ctx.damage != null) ctx.damage.amount = Mathf.Max(0, ctx.damage.amount - a.amount);
@@ -134,5 +140,35 @@ public class EffectRunner : MonoBehaviour
         var panel = ctx.controller.scryPanel;
         panel.Open(ctx.controller.deckManager, count);
         yield return new WaitUntil(() => !panel.IsOpen);
+    }
+
+    // Strike: pick one of YOUR weapons; it attacks the opponent for its damage (× multiplier
+    // + bonus) WITHOUT tapping, then is optionally destroyed. Fizzles if you have no weapon.
+    private IEnumerator DoStrike(EffectContext ctx, CardAbility a)
+    {
+        if (ctx.controller == null) yield break;
+
+        yield return PickTarget(
+            ctx,
+            t => TargetFilters.IsOwnWeaponInPlay(t, ctx.controller),
+            t =>
+            {
+                int mult = Mathf.Max(1, a.strikeDamageMultiplier);
+                int dealt = Mathf.Max(0, WeaponAttackDamage(t.Data) * mult + a.strikeBonusDamage);
+                if (ctx.opponent != null && dealt > 0)
+                    ctx.opponent.TakeDamage(dealt, t.gameObject, t.Data);
+                if (a.strikeDestroysWeapon && t.Owner != null)
+                    t.Owner.SendToDiscard(t.gameObject);
+            });
+    }
+
+    // A weapon's attack damage is the amount on its first Activated DealDamage ability.
+    private static int WeaponAttackDamage(Card weapon)
+    {
+        if (weapon == null || weapon.abilities == null) return 0;
+        foreach (var ab in weapon.abilities)
+            if (ab != null && ab.trigger == Trigger.Activated && ab.effect == EffectKind.DealDamage)
+                return ab.amount;
+        return 0;
     }
 }

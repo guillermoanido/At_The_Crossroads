@@ -24,4 +24,14 @@ MonoBehaviour:
   wisRequired: 0
   dexRequired: 0
   effectDescription: 'Strike: +2 Damage'
-  abilities: []
+  abilities:
+  - trigger: 0
+    effect: 17
+    amount: 1
+    target: 0
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 2
+    strikeDestroysWeapon: 0

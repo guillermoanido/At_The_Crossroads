@@ -37,8 +37,7 @@ public class Player : MonoBehaviour
     public int CurrentHp { get; private set; }
     public int MaxHp => maxHp;
     public int Stamina { get; private set; }
-    private int bonusStaminaThisTurn;
-    public int MaxStamina => maxStamina + bonusStaminaThisTurn;
+    public int MaxStamina => maxStamina;
     public int Defense { get; private set; }
     public int MaxDefense => maxDefense;
 
@@ -83,20 +82,21 @@ public class Player : MonoBehaviour
 
     public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
 
-    // Gaining stamina from a card raises your max for the rest of the turn and hands you
-    // the stamina now. The bonus is cleared at your next upkeep in ResetStamina.
-    public void GainStamina(int amount)
+    // "For the turn" stamina (e.g. Second Wind): hands you extra stamina to spend now. It
+    // naturally expires at your next upkeep, when ResetStamina refills to maxStamina — so it
+    // does NOT raise your max, and may briefly push current above it.
+    public void GainStamina(int amount) => AdjustStamina(amount);
+
+    // Cards that raise your stamina pool. Bumps the max and hands you the same amount now so
+    // it's usable this turn.
+    public void IncreaseMaxStamina(int amount)
     {
-        if (amount <= 0) { AdjustStamina(amount); return; }
-        bonusStaminaThisTurn += amount;
-        Stamina += amount;
+        if (amount == 0) return;
+        maxStamina = Mathf.Max(0, maxStamina + amount);
+        if (amount > 0) Stamina += amount;
     }
 
-    public void ResetStamina()
-    {
-        bonusStaminaThisTurn = 0;
-        Stamina = maxStamina;
-    }
+    public void ResetStamina() => Stamina = maxStamina;
 
     public void AdjustDefense(int delta)
     {

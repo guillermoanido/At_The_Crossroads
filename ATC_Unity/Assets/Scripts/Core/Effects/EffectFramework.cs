@@ -59,6 +59,8 @@ public enum EffectKind
     OpponentDiscards,
     TakeExtraTurn,
     ReturnTargetEquipmentToHand,
+    IncreaseMaxStamina,
+    Strike,
 }
 
 public enum EffectTarget
@@ -91,6 +93,16 @@ public class CardAbility
 
     [Tooltip("If true the card taps when activated and can't be used again until it untaps at your upkeep.")]
     public bool tapToActivate = true;
+
+    [Header("Strike ability only (effect = Strike)")]
+    [Tooltip("You pick one of YOUR weapons in play; it attacks for its damage WITHOUT tapping. Base damage is multiplied by this (Hurl = 2).")]
+    public int strikeDamageMultiplier = 1;
+
+    [Tooltip("Flat damage added after the multiplier (Heavy Swing = +2). Negative lowers it (Open Veins = -1).")]
+    public int strikeBonusDamage = 0;
+
+    [Tooltip("If true, the weapon used is destroyed (sent to discard) after the strike (Hurl).")]
+    public bool strikeDestroysWeapon = false;
 }
 
 #endregion
@@ -111,6 +123,9 @@ public static class TargetFilters
 
     public static bool IsOpponentEquipmentInPlay(Targetable t, Player controller)
         => IsOpponentCardInPlay(t, controller) && t.Data != null && t.Data.IsEquipment;
+
+    public static bool IsOwnWeaponInPlay(Targetable t, Player controller)
+        => IsCardInPlay(t) && t.Owner == controller && t.Data != null && t.Data.cardType == Card.CardType.Weapon;
 }
 
 #endregion
