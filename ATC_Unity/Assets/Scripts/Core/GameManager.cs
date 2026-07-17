@@ -13,6 +13,9 @@ public class GameManager : MonoBehaviour
     [Tooltip("How many cards each player holds at the start of the game.")]
     [SerializeField] private int startingHandSize = 6;
 
+    [Tooltip("On = match begins immediately on load (offline / hotseat / AI). Turn OFF for networked play — the NetworkManager starts the match once both players connect.")]
+    [SerializeField] private bool autoStartOffline = true;
+
     private bool skipNextDraw;
     private int queuedExtraTurns;
 
@@ -63,7 +66,10 @@ public class GameManager : MonoBehaviour
         Instance = this;
     }
 
-    private void Start() => StartGame();
+    private void Start()
+    {
+        if (autoStartOffline) StartGame();
+    }
 
     private void Update() => ApplyLiveScales();
 
@@ -105,7 +111,7 @@ public class GameManager : MonoBehaviour
         zone.RefreshLayout();
     }
 
-    private void StartGame()
+    public void StartGame()
     {
         if (player1 != null) player1.deckManager.Shuffle();
         if (player2 != null) player2.deckManager.Shuffle();

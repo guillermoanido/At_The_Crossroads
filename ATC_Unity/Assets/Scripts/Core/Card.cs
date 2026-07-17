@@ -54,6 +54,10 @@ public class Card : ScriptableObject
     public bool IsEquipment
         => cardType == CardType.Weapon || cardType == CardType.Accesory || cardType == CardType.Armour;
 
+    // Combat cards (weapons/attacks) can only be activated during your Combat phase.
+    public bool IsCombatCard
+        => cardType == CardType.Weapon || cardType == CardType.Attack;
+
     public CardAbility FirstActivated()
     {
         if (abilities == null) return null;

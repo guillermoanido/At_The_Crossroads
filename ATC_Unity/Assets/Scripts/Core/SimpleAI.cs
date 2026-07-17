@@ -66,6 +66,11 @@ public class SimpleAI : MonoBehaviour
                     yield return WaitForStack();
                     gm.AdvancePhase();
                     break;
+                case GameManager.GamePhase.Combat:
+                    yield return ActivateBoard();
+                    yield return WaitForStack();
+                    gm.AdvancePhase();
+                    break;
                 default:
                     gm.AdvancePhase();
                     break;

@@ -37,7 +37,8 @@ public class Player : MonoBehaviour
     public int CurrentHp { get; private set; }
     public int MaxHp => maxHp;
     public int Stamina { get; private set; }
-    public int MaxStamina => maxStamina;
+    private int bonusStaminaThisTurn;
+    public int MaxStamina => maxStamina + bonusStaminaThisTurn;
     public int Defense { get; private set; }
     public int MaxDefense => maxDefense;
 
@@ -82,7 +83,20 @@ public class Player : MonoBehaviour
 
     public void AdjustStamina(int delta) => Stamina = Mathf.Max(0, Stamina + delta);
 
-    public void ResetStamina() => Stamina = maxStamina;
+    // Gaining stamina from a card raises your max for the rest of the turn and hands you
+    // the stamina now. The bonus is cleared at your next upkeep in ResetStamina.
+    public void GainStamina(int amount)
+    {
+        if (amount <= 0) { AdjustStamina(amount); return; }
+        bonusStaminaThisTurn += amount;
+        Stamina += amount;
+    }
+
+    public void ResetStamina()
+    {
+        bonusStaminaThisTurn = 0;
+        Stamina = maxStamina;
+    }
 
     public void AdjustDefense(int delta)
     {
@@ -201,7 +215,7 @@ public class Player : MonoBehaviour
             return false;
         }
 
-        if (!SpeedAllowedThisPhase(ability.activationSpeed, out string reason))
+        if (!ActivationTimingAllowed(cardData, ability, out string reason))
         {
             Debug.Log($"[Activate] {name} cannot activate {cardData.cardName}: {reason}");
             return false;
@@ -290,6 +304,30 @@ public class Player : MonoBehaviour
 
         reason = null;
         return true;
+    }
+
+    private bool ActivationTimingAllowed(Card card, CardAbility ability, out string reason)
+    {
+        reason = null;
+        var gm = GameManager.Instance;
+
+        // Weapons/attacks are combat actions: only on your own turn, only during Combat.
+        if (card.IsCombatCard)
+        {
+            if (gm != null && !gm.IsActivePlayer(this))
+            {
+                reason = "Weapons can only be used on your turn";
+                return false;
+            }
+            if (gm != null && gm.CurrentPhase != GameManager.GamePhase.Combat)
+            {
+                reason = $"Weapons can only be activated in Combat (current: {gm.CurrentPhase})";
+                return false;
+            }
+            return true;
+        }
+
+        return SpeedAllowedThisPhase(ability.activationSpeed, out reason);
     }
 
     private bool SpeedAllowedThisPhase(Card.SpeedType speed, out string reason)

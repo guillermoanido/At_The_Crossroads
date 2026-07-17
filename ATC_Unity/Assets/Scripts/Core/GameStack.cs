@@ -18,6 +18,12 @@ public class GameStack : MonoBehaviour
     public bool IsBusy => !IsEmpty || running;
     public int Count => items.Count;
 
+    // The player whose response window is currently open — null when there is none.
+    // Use this to show "Player X: respond or pass" so local players know who acts.
+    public Player PriorityPlayer => (!IsEmpty && !running && GameManager.Instance != null)
+        ? GameManager.Instance.ControllingPlayer
+        : null;
+
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }

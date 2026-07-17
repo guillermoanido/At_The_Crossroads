@@ -92,7 +92,7 @@ public class EffectRunner : MonoBehaviour
                 for (int i = 0; i < a.amount && ctx.controller != null; i++) ctx.controller.DrawCard();
                 break;
             case EffectKind.GainStamina:
-                if (ctx.controller != null) ctx.controller.AdjustStamina(a.amount);
+                if (ctx.controller != null) ctx.controller.GainStamina(a.amount);
                 break;
             case EffectKind.ReduceIncomingDamage:
                 if (ctx.damage != null) ctx.damage.amount = Mathf.Max(0, ctx.damage.amount - a.amount);
