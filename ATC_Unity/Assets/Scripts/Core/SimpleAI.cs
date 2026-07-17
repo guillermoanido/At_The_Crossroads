@@ -20,6 +20,7 @@ public class SimpleAI : MonoBehaviour
         if (!autoPlay || me == null) return;
         var gm = GameManager.Instance;
         if (gm == null) return;
+        if (gm.OnlineMode) return; // online: Player 2 is a human client, not the AI
 
         if (me.scryPanel != null && me.scryPanel.IsOpen)
         {

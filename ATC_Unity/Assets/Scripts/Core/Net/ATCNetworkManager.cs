@@ -10,6 +10,16 @@ using UnityEngine;
 /// "Auto Start Offline" ON and simply never press Host/Client to play locally as before.
 public class ATCNetworkManager : NetworkManager
 {
+    public override void Start()
+    {
+        base.Start();
+        // Offline mode keeps networking dormant and hides the connect HUD so nobody
+        // accidentally hosts. Online mode shows it. (No GameManager yet = treat as online.)
+        bool online = GameManager.Instance == null || GameManager.Instance.OnlineMode;
+        var hud = GetComponent<NetworkManagerHUD>();
+        if (hud != null) hud.enabled = online;
+    }
+
     public override void OnServerConnect(NetworkConnectionToClient conn)
     {
         base.OnServerConnect(conn);

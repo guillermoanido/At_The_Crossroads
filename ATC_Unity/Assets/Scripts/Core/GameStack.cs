@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Mirror;
 using UnityEngine;
 
 public class GameStack : MonoBehaviour
@@ -95,6 +96,24 @@ public class GameStack : MonoBehaviour
     private void UpdatePassButton()
     {
         // Shown only when the stack is holding — i.e. a response is possible, not mid-resolution.
-        if (passButton != null) passButton.SetActive(!IsEmpty && !running);
+        bool windowOpen = !IsEmpty && !running;
+
+        if (GameManager.Instance != null && GameManager.Instance.OnlineMode)
+        {
+            // Online: the server decides who may respond and pushes it to that seat; each
+            // client shows its own button via the seat's SyncVar hook (see NetworkPlayerSeat).
+            if (NetworkServer.active)
+                NetworkPlayerSeat.ServerSetResponseWindow(windowOpen ? PriorityPlayer : null);
+            return;
+        }
+
+        ShowPassButton(windowOpen);
+    }
+
+    // Toggle the local Pass button. Called locally offline, or by the local seat's SyncVar
+    // hook online. Safe to call on any peer.
+    public void ShowPassButton(bool visible)
+    {
+        if (passButton != null) passButton.SetActive(visible);
     }
 }

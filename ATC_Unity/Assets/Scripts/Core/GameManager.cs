@@ -13,8 +13,10 @@ public class GameManager : MonoBehaviour
     [Tooltip("How many cards each player holds at the start of the game.")]
     [SerializeField] private int startingHandSize = 6;
 
-    [Tooltip("On = match begins immediately on load (offline / hotseat / AI). Turn OFF for networked play — the NetworkManager starts the match once both players connect.")]
-    [SerializeField] private bool autoStartOffline = true;
+    [Tooltip("OFF = Offline: the match auto-starts on load for hotseat / AI play, and the network HUD is hidden. ON = Online: the game waits for two players to connect (the NetworkManager starts it), the connect HUD is shown, and the AI is disabled.")]
+    [SerializeField] private bool onlineMode = false;
+
+    public bool OnlineMode => onlineMode;
 
     private bool skipNextDraw;
     private int queuedExtraTurns;
@@ -44,6 +46,11 @@ public class GameManager : MonoBehaviour
     public Player ControllingPlayer { get; private set; }
     public bool IsControllingPlayer(Player player) => ControllingPlayer == player;
 
+    // Seat 0 = Player 1 (host), seat 1 = Player 2 (client). Used by the networking layer
+    // to bind a connection's seat to the actual game Player it controls.
+    public Player PlayerForSeat(int seat) => seat == 0 ? player1 : seat == 1 ? player2 : null;
+    public int SeatOf(Player player) => player == player1 ? 0 : player == player2 ? 1 : -1;
+
     public float GetScaleForZone(CardZone.ZoneKind kind)
     {
         switch (kind)
@@ -68,7 +75,7 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        if (autoStartOffline) StartGame();
+        if (!onlineMode) StartGame();
     }
 
     private void Update() => ApplyLiveScales();
@@ -200,5 +207,6 @@ public class GameManager : MonoBehaviour
     {
         ActivePlayer = player;
         ControllingPlayer = player;
+        NetworkPlayerSeat.ServerRefreshTurn(); // no-op offline / on clients
     }
 }
