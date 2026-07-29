@@ -7,7 +7,10 @@ public class HoverPreview : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
     public void OnPointerEnter(PointerEventData eventData)
     {
         var display = GetComponent<CardDisplay>();
-        if (CardPreview.Instance != null && display != null && display.cardData != null)
+        // Only preview FACE-UP cards. A face-down card is the opponent's (or a placeholder), so this
+        // keeps the enlarged card display private to its owner — the opponent's faces never leak,
+        // even on the host where their cards are real objects merely flipped face-down.
+        if (CardPreview.Instance != null && display != null && display.IsFaceUp && display.cardData != null)
             CardPreview.Instance.Show(display.cardData);
     }
 

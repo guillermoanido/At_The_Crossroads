@@ -100,9 +100,10 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
             return;
         }
 
-        var owner = handManager.Owner;
-        var card = GetComponent<CardDisplay>().cardData;
-        if (owner.TryPlayCard(gameObject, card))
+        // Route the play: offline plays locally; online sends a Command so the host validates
+        // speed/priority and resolves it. On success we keep it out of the hand; otherwise it snaps
+        // back (online, the authoritative hand sync removes it a moment later if the play was legal).
+        if (MatchInput.PlayCard(gameObject))
         {
             State = CardState.Idle;
             glowEffect.SetActive(false);
@@ -124,8 +125,19 @@ public class CardMovement : MonoBehaviour, IPointerDownHandler, IDragHandler, IP
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (State != CardState.Idle) return;
-        if (!OwnerCanInteractNow()) return;
+        if (!CanHover()) return;
         State = CardState.Hover;
+    }
+
+    // You may always hover/inspect your OWN hand. Online, "yours" is the local display slot
+    // (bottom); the opponent's cards (top / face-down) never hover, so their faces never leak.
+    // Whether the card can actually be PLAYED right now is decided by the host on drop.
+    private bool CanHover()
+    {
+        if (handManager == null || GameManager.Instance == null) return false;
+        if (GameManager.Instance.OnlineMode)
+            return handManager.Owner == GameManager.Instance.LocalDisplayPlayer;
+        return OwnerCanInteractNow();   // offline hotseat keeps the turn/priority rule
     }
 
     private bool OwnerCanInteractNow()

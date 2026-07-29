@@ -44,6 +44,30 @@ public class MatchInput : MonoBehaviour
         }
     }
 
+    // Play a card from hand. Offline: play it locally. Online: send a Command from the local seat
+    // so the host validates speed/priority (reflex anytime with the stack, channel only on your
+    // turn) and resolves it. Returns true only when the card was consumed locally (offline); online
+    // it returns false so the caller snaps it back — the authoritative hand sync removes it if legal.
+    public static bool PlayCard(GameObject cardGO)
+    {
+        if (cardGO == null) return false;
+        var hand = cardGO.GetComponentInParent<HandManager>();
+        var data = cardGO.GetComponent<CardDisplay>() != null ? cardGO.GetComponent<CardDisplay>().cardData : null;
+        if (hand == null || data == null) return false;
+
+        // Offline, or the host (which is authoritative), plays directly and reports the result.
+        if (!IsOnline() || NetworkServer.active)
+            return hand.Owner != null && hand.Owner.TryPlayCard(cardGO, data);
+
+        // A pure client sends the intent; the host validates and the hand sync reflects the outcome.
+        var seat = LocalSeat();
+        if (seat == null) return false;
+        int index = hand.cardsInHand.IndexOf(cardGO);
+        if (index < 0) return false;
+        seat.CmdPlayCardAt(index);
+        return false;
+    }
+
     private static bool IsOnline()
         => GameManager.Instance != null && GameManager.Instance.OnlineMode;
 

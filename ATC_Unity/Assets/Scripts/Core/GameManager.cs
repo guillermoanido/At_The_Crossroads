@@ -61,6 +61,10 @@ public class GameManager : MonoBehaviour
     // everyone else → top slot (player2). On the host this is the identity map (local seat 0).
     public Player DisplayPlayerForSeat(int seat) => seat == LocalSeat ? player1 : player2;
 
+    // The on-screen Player that represents the LOCAL player — always the bottom slot after the
+    // display remap. Used to decide "is this my card?" for hover/inspection in online play.
+    public Player LocalDisplayPlayer => DisplayPlayerForSeat(LocalSeat);
+
     public float GetScaleForZone(CardZone.ZoneKind kind)
     {
         switch (kind)

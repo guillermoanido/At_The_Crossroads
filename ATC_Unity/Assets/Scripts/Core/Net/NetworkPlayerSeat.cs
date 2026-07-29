@@ -127,6 +127,24 @@ public class NetworkPlayerSeat : NetworkBehaviour
     [Command]
     private void CmdRequestHandResync() => ServerPushHand();
 
+    // Play the card at `handIndex` in THIS seat's hand. The client's hand is a synced mirror of the
+    // server's, in the same order, so the index is unambiguous. The host validates everything
+    // (priority, speed/phase, stamina) inside TryPlayCard, so illegal/out-of-turn plays are rejected
+    // here; a legal play removes the card and the hand re-syncs to both clients.
+    [Command]
+    public void CmdPlayCardAt(int handIndex)
+    {
+        if (BoundPlayer == null || BoundPlayer.handManager == null) return;
+        var cards = BoundPlayer.handManager.cardsInHand;
+        if (handIndex < 0 || handIndex >= cards.Count) return;
+
+        var cardGO = cards[handIndex];
+        var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+        if (data == null) return;
+
+        BoundPlayer.TryPlayCard(cardGO, data);
+    }
+
     #endregion
 
     #region Hand sync (server → clients)
