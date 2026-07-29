@@ -22,6 +22,12 @@ public class NetworkPlayerSeat : NetworkBehaviour
     [SyncVar(hook = nameof(OnActiveTurnChanged))]
     public bool isActiveTurn;
 
+    // How many cards this seat holds. Public to everyone so the OPPONENT can mirror the hidden
+    // hand as this many face-down backs. The owner ignores it and shows their real cards instead
+    // (pushed privately via TargetSyncOwnHand).
+    [SyncVar(hook = nameof(OnHandCountChanged))]
+    public int handCount;
+
     // Server-only: the game Player this seat controls, and a registry of live seats.
     public Player BoundPlayer { get; private set; }
     private static readonly List<NetworkPlayerSeat> serverSeats = new List<NetworkPlayerSeat>();
@@ -33,9 +39,32 @@ public class NetworkPlayerSeat : NetworkBehaviour
         BoundPlayer = GameManager.Instance != null ? GameManager.Instance.PlayerForSeat(seatIndex) : null;
         if (!serverSeats.Contains(this)) serverSeats.Add(this);
         Debug.Log($"[Net] Seat {seatIndex} bound to {(BoundPlayer != null ? BoundPlayer.name : "NULL")} on server.");
+
+        // Push this seat's hand to clients whenever it changes (deal, draw, play, discard...).
+        if (BoundPlayer != null && BoundPlayer.handManager != null)
+        {
+            BoundPlayer.handManager.OnHandChanged += ServerPushHand;
+            ServerPushHand();
+        }
     }
 
-    public override void OnStopServer() => serverSeats.Remove(this);
+    public override void OnStopServer()
+    {
+        serverSeats.Remove(this);
+        if (BoundPlayer != null && BoundPlayer.handManager != null)
+            BoundPlayer.handManager.OnHandChanged -= ServerPushHand;
+    }
+
+    // Runs on every client (and the host) once this seat exists. Sets each machine's perspective
+    // and seeds the parts that a SyncVar hook won't fire for on a fresh spawn.
+    public override void OnStartClient()
+    {
+        // The opponent object is reliably NOT the local player, so we can render its backs here.
+        // The host already owns the opponent's real card objects — just show their backs; a
+        // remote client instead builds placeholder backs from the synced count.
+        if (!isLocalPlayer)
+            RenderOpponentHand(handCount);
+    }
 
     public override void OnStartLocalPlayer()
     {
@@ -44,6 +73,12 @@ public class NetworkPlayerSeat : NetworkBehaviour
         // OnResponsePendingChanged and never hides the scene-default-active Pass button.
         // Seed the local button from the current synced value (false at game start).
         if (GameStack.Instance != null) GameStack.Instance.ShowPassButton(responsePending);
+
+        // My own hand is shown face-up. Ask the server to (re)send it in case the deal happened
+        // before this object finished spawning.
+        var hand = HandFor(seatIndex);
+        if (hand != null) hand.SetFaceUpMode(true);
+        CmdRequestHandResync();
     }
 
     #endregion
@@ -67,6 +102,89 @@ public class NetworkPlayerSeat : NetworkBehaviour
         if (gm == null || GameStack.Instance == null) return;
         if (BoundPlayer != null && BoundPlayer == gm.ControllingPlayer) GameStack.Instance.Pass();
         else Debug.Log($"[Net] Seat {seatIndex} tried to pass without priority — ignored.");
+    }
+
+    // Asked by a client when its player object finishes spawning, to cover the case where the
+    // opening hand was dealt before this seat existed on that client.
+    [Command]
+    private void CmdRequestHandResync() => ServerPushHand();
+
+    #endregion
+
+    #region Hand sync (server → clients)
+
+    // Server-authoritative: publish this seat's hand. Everyone learns the count (for opponent
+    // backs); only the owning client gets the real card ids (its private, face-up hand).
+    [Server]
+    private void ServerPushHand()
+    {
+        var hand = BoundPlayer != null ? BoundPlayer.handManager : null;
+        if (hand == null) return;
+
+        var db = CardDatabase.Instance;
+        var ids = new int[hand.cardsInHand.Count];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            var data = hand.cardsInHand[i] != null
+                ? hand.cardsInHand[i].GetComponent<CardDisplay>()?.cardData : null;
+            ids[i] = db != null ? db.Id(data) : -1;
+        }
+
+        handCount = ids.Length;      // SyncVar → all clients (opponent back count)
+        Debug.Log($"[Net] Server push: seat {seatIndex} hand = {ids.Length} card(s).");
+        TargetSyncOwnHand(ids);      // → only this seat's owner
+    }
+
+    // Delivered to the owning client: rebuild its real, face-up hand from the synced ids. The
+    // host is skipped — it already holds the authoritative card objects.
+    [TargetRpc]
+    private void TargetSyncOwnHand(int[] ids)
+    {
+        if (isServer) return;
+
+        var hand = HandFor(seatIndex);
+        if (hand == null) return;
+
+        hand.SetFaceUpMode(true);
+        hand.ClearHand();
+
+        var db = CardDatabase.Instance;
+        int built = 0;
+        foreach (int id in ids)
+        {
+            var card = db != null ? db.FromId(id) : null;
+            if (card != null) { hand.AddCardToHand(card); built++; }
+        }
+        Debug.Log($"[Net] Own hand delivered on client: seat {seatIndex}, built {built}/{ids.Length} " +
+                  $"(db={(db != null ? "ok" : "NULL")}).");
+    }
+
+    // Show this seat's hand as face-down backs (it belongs to the opponent on this machine).
+    private void RenderOpponentHand(int count)
+    {
+        if (isLocalPlayer) return;   // never redraw my own hand from a back-count
+
+        var hand = HandFor(seatIndex);
+        if (hand == null) return;
+
+        // The host owns the opponent's real cards — flip them to backs rather than rebuild.
+        if (isServer)
+        {
+            hand.SetFaceUpMode(false);
+            return;
+        }
+
+        // Remote client: mirror the hidden hand as `count` faceless backs.
+        hand.ClearHand();
+        hand.SetFaceUpMode(false);
+        for (int i = 0; i < count; i++) hand.AddFaceDownPlaceholder();
+        Debug.Log($"[Net] Opponent backs on client: seat {seatIndex} → {count} back(s).");
+    }
+
+    private static HandManager HandFor(int seat)
+    {
+        var player = GameManager.Instance != null ? GameManager.Instance.PlayerForSeat(seat) : null;
+        return player != null ? player.handManager : null;
     }
 
     #endregion
@@ -109,6 +227,8 @@ public class NetworkPlayerSeat : NetworkBehaviour
     {
         if (isLocalPlayer) Debug.Log($"[Net] It is {(now ? "now" : "no longer")} my turn (seat {seatIndex}).");
     }
+
+    private void OnHandCountChanged(int _, int now) => RenderOpponentHand(now);
 
     #endregion
 }

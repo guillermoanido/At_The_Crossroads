@@ -27,6 +27,12 @@ public class HandManager : MonoBehaviour
     public List<GameObject> cardsInHand = new List<GameObject>();
     public bool IsHandFull => cardsInHand.Count >= maxHandSize;
 
+    /// Raised after any change to the hand's contents (add/remove/clear). The networking layer
+    /// subscribes on the server to push the new hand state to clients. No-op offline.
+    public event System.Action OnHandChanged;
+
+    public bool ShowFaceUp => showFaceUp;
+
     public void SetOwner(Player player) => Owner = player;
 
     public void AddCardToHand(Card cardData)
@@ -41,11 +47,49 @@ public class HandManager : MonoBehaviour
         newCard.GetComponent<CardMovement>().Init(this);
 
         LayoutHand();
+        OnHandChanged?.Invoke();
     }
 
     public void RemoveCardFromHand(GameObject card)
     {
         cardsInHand.Remove(card);
+        LayoutHand();
+        OnHandChanged?.Invoke();
+    }
+
+    /// Flip every card in this hand (and any added afterwards) face-up or face-down. Used by the
+    /// network layer to set each machine's perspective: your own hand face-up, the opponent's down.
+    public void SetFaceUpMode(bool faceUp)
+    {
+        showFaceUp = faceUp;
+        foreach (var go in cardsInHand)
+            if (go != null) go.GetComponent<CardDisplay>()?.SetFaceUp(faceUp);
+    }
+
+    /// Destroy every card object and empty the hand. Clients rebuild their view of a hand from
+    /// synced state, so they clear first to stay in lock-step with the authoritative host.
+    public void ClearHand()
+    {
+        foreach (var go in cardsInHand)
+            if (go != null) Destroy(go);
+        cardsInHand.Clear();
+        LayoutHand();
+        OnHandChanged?.Invoke();
+    }
+
+    /// Add a faceless, non-interactive card back — one per hidden card in an opponent's hand.
+    public void AddFaceDownPlaceholder()
+    {
+        var newCard = Instantiate(cardPrefab, handPosition.position, Quaternion.identity, handPosition);
+        cardsInHand.Add(newCard);
+
+        var display = newCard.GetComponent<CardDisplay>();
+        display.cardData = null;
+        display.SetFaceUp(false);
+
+        CardDisplay.DisableGameplayInteractions(newCard);
+        newCard.GetComponent<CardMovement>().Init(this);
+
         LayoutHand();
     }
 

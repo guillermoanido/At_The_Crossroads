@@ -59,13 +59,17 @@ public class CardDisplay : MonoBehaviour
 
     private void ShowFaceDown()
     {
-        if (faceContent != null) faceContent.SetActive(false);
+        // Hide only the front-face details, NOT `faceContent`: in the prefab faceContent is the
+        // whole Card Canvas and the card image lives inside it, so disabling it would hide the
+        // back too and the card would render blank. Instead we blank the details and swap the
+        // (still-visible) card image to the back sprite.
+        SetFaceDetailsActive(false);
         if (cardImage != null && cardBackSprite != null) cardImage.sprite = cardBackSprite;
     }
 
     private void ShowFaceUp()
     {
-        if (faceContent != null) faceContent.SetActive(true);
+        SetFaceDetailsActive(true);
         if (cardImage != null && capturedFront) cardImage.sprite = frontSprite;
         if (cardData == null) return;
 
@@ -73,6 +77,23 @@ public class CardDisplay : MonoBehaviour
         if (cardEffectText != null) cardEffectText.text = cardData.effectDescription;
         if (speedText != null) speedText.text = cardData.speedType.ToString();
         if (costText != null) costText.text = cardData.energyCost.ToString();
+    }
+
+    // Toggle the front-only elements (name, effect, speed, cost). Used to reveal just the back
+    // sprite when a card is face-down, since the card image itself is the shared front/back art.
+    private void SetFaceDetailsActive(bool active)
+    {
+        ToggleObject(cardNameText, active);
+        ToggleObject(cardEffectText, active);
+        ToggleObject(speedText, active);
+        ToggleObject(speedImage, active);
+        ToggleObject(costText, active);
+        ToggleObject(costImage, active);
+    }
+
+    private static void ToggleObject(Component component, bool active)
+    {
+        if (component != null) component.gameObject.SetActive(active);
     }
 
     public static void DisableGameplayInteractions(GameObject clone)
