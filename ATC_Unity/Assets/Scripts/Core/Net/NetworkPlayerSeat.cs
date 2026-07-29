@@ -32,6 +32,10 @@ public class NetworkPlayerSeat : NetworkBehaviour
     public Player BoundPlayer { get; private set; }
     private static readonly List<NetworkPlayerSeat> serverSeats = new List<NetworkPlayerSeat>();
 
+    // Client-side registry of every seat that exists on this machine (used to re-render all hands
+    // into the correct slot once we learn which seat is locally controlled).
+    private static readonly List<NetworkPlayerSeat> clientSeats = new List<NetworkPlayerSeat>();
+
     #region Lifecycle / binding
 
     public override void OnStartServer()
@@ -59,12 +63,17 @@ public class NetworkPlayerSeat : NetworkBehaviour
     // and seeds the parts that a SyncVar hook won't fire for on a fresh spawn.
     public override void OnStartClient()
     {
+        if (!clientSeats.Contains(this)) clientSeats.Add(this);
+
         // The opponent object is reliably NOT the local player, so we can render its backs here.
         // The host already owns the opponent's real card objects — just show their backs; a
-        // remote client instead builds placeholder backs from the synced count.
+        // remote client instead builds placeholder backs from the synced count. (If we don't yet
+        // know our own seat, this may land in the wrong slot; OnStartLocalPlayer re-renders.)
         if (!isLocalPlayer)
             RenderOpponentHand(handCount);
     }
+
+    public override void OnStopClient() => clientSeats.Remove(this);
 
     public override void OnStartLocalPlayer()
     {
@@ -74,11 +83,20 @@ public class NetworkPlayerSeat : NetworkBehaviour
         // Seed the local button from the current synced value (false at game start).
         if (GameStack.Instance != null) GameStack.Instance.ShowPassButton(responsePending);
 
-        // My own hand is shown face-up. Ask the server to (re)send it in case the deal happened
-        // before this object finished spawning.
+        // Now that our seat is known, the local player is displayed in the BOTTOM slot (player1)
+        // and the opponent in the TOP slot (player2) — regardless of which network seat we are.
+        if (GameManager.Instance != null) GameManager.Instance.LocalSeat = seatIndex;
+
+        // My own hand is shown face-up in the bottom slot. Ask the server to (re)send it in case
+        // the deal happened before this object finished spawning.
         var hand = HandFor(seatIndex);
         if (hand != null) hand.SetFaceUpMode(true);
         CmdRequestHandResync();
+
+        // Re-render opponents into the top slot: their initial OnStartClient render happened
+        // before we knew our own seat, so it may have gone to the wrong slot.
+        foreach (var s in clientSeats)
+            if (!s.isLocalPlayer) s.RenderOpponentHand(s.handCount);
     }
 
     #endregion
@@ -181,9 +199,11 @@ public class NetworkPlayerSeat : NetworkBehaviour
         Debug.Log($"[Net] Opponent backs on client: seat {seatIndex} → {count} back(s).");
     }
 
+    // Uses the DISPLAY mapping (local → bottom slot, opponent → top slot), not the logical seat
+    // binding, so each machine shows its own player at the bottom.
     private static HandManager HandFor(int seat)
     {
-        var player = GameManager.Instance != null ? GameManager.Instance.PlayerForSeat(seat) : null;
+        var player = GameManager.Instance != null ? GameManager.Instance.DisplayPlayerForSeat(seat) : null;
         return player != null ? player.handManager : null;
     }
 

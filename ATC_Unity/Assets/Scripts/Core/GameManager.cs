@@ -51,6 +51,16 @@ public class GameManager : MonoBehaviour
     public Player PlayerForSeat(int seat) => seat == 0 ? player1 : seat == 1 ? player2 : null;
     public int SeatOf(Player player) => player == player1 ? 0 : player == player2 ? 1 : -1;
 
+    // The seat THIS machine controls (0 on the host / offline). The networking layer sets it so
+    // the local player is always DISPLAYED in Player 1's (bottom) slot and the opponent in
+    // Player 2's (top) slot — regardless of network seat. This is display-only; game logic and
+    // seat binding still use PlayerForSeat.
+    public int LocalSeat { get; set; }
+
+    // Which on-screen Player renders a given network seat: the local seat → bottom slot (player1),
+    // everyone else → top slot (player2). On the host this is the identity map (local seat 0).
+    public Player DisplayPlayerForSeat(int seat) => seat == LocalSeat ? player1 : player2;
+
     public float GetScaleForZone(CardZone.ZoneKind kind)
     {
         switch (kind)
