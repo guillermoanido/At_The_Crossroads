@@ -28,6 +28,16 @@ public class NetworkPlayerSeat : NetworkBehaviour
     [SyncVar(hook = nameof(OnHandCountChanged))]
     public int handCount;
 
+    // Stats are PUBLIC (both players see each other's HP/stamina/defense), so plain SyncVars to
+    // everyone. Applied on clients to the display-mapped Player; PlayerStatsUI polls it. Defaults
+    // match Player's defaults so the pre-sync display is already correct.
+    [SyncVar(hook = nameof(OnStatSynced))] private int syncHp = 30;
+    [SyncVar(hook = nameof(OnStatSynced))] private int syncStamina = 3;
+    [SyncVar(hook = nameof(OnStatSynced))] private int syncMaxStamina = 3;
+    [SyncVar(hook = nameof(OnStatSynced))] private int syncDefense;
+
+    private bool boardDirty;   // server: a zone changed, push the board snapshot next Update
+
     // Server-only: the game Player this seat controls, and a registry of live seats.
     public Player BoundPlayer { get; private set; }
     private static readonly List<NetworkPlayerSeat> serverSeats = new List<NetworkPlayerSeat>();
@@ -50,6 +60,14 @@ public class NetworkPlayerSeat : NetworkBehaviour
             BoundPlayer.handManager.OnHandChanged += ServerPushHand;
             ServerPushHand();
         }
+
+        // Push this seat's board to clients whenever any of its zones change.
+        if (BoundPlayer != null)
+        {
+            foreach (var zone in BoundPlayer.SyncedZones())
+                if (zone != null) zone.OnChanged += MarkBoardDirty;
+            boardDirty = true;   // publish the initial (empty) board once
+        }
     }
 
     public override void OnStopServer()
@@ -57,7 +75,26 @@ public class NetworkPlayerSeat : NetworkBehaviour
         serverSeats.Remove(this);
         if (BoundPlayer != null && BoundPlayer.handManager != null)
             BoundPlayer.handManager.OnHandChanged -= ServerPushHand;
+        if (BoundPlayer != null)
+            foreach (var zone in BoundPlayer.SyncedZones())
+                if (zone != null) zone.OnChanged -= MarkBoardDirty;
     }
+
+    // Server: mirror the authoritative stats (SyncVars only send on change) and flush a board
+    // snapshot when a zone changed this frame.
+    private void Update()
+    {
+        if (!isServer || BoundPlayer == null) return;
+
+        syncHp = BoundPlayer.CurrentHp;
+        syncStamina = BoundPlayer.Stamina;
+        syncMaxStamina = BoundPlayer.MaxStamina;
+        syncDefense = BoundPlayer.Defense;
+
+        if (boardDirty) { boardDirty = false; ServerPushBoard(); }
+    }
+
+    private void MarkBoardDirty() => boardDirty = true;
 
     // Runs on every client (and the host) once this seat exists. Sets each machine's perspective
     // and seeds the parts that a SyncVar hook won't fire for on a fresh spawn.
@@ -127,22 +164,31 @@ public class NetworkPlayerSeat : NetworkBehaviour
     [Command]
     private void CmdRequestHandResync() => ServerPushHand();
 
-    // Play the card at `handIndex` in THIS seat's hand. The client's hand is a synced mirror of the
-    // server's, in the same order, so the index is unambiguous. The host validates everything
-    // (priority, speed/phase, stamina) inside TryPlayCard, so illegal/out-of-turn plays are rejected
-    // here; a legal play removes the card and the hand re-syncs to both clients.
+    // Play a card from THIS seat's hand, identified by its stable CardDatabase id — NOT a positional
+    // index, because the client's hand is an async mirror that may have shifted (a draw, an
+    // opponent's discard/return) between the client capturing the card and this command arriving.
+    // The host resolves the card by id and validates everything in TryPlayCard (priority,
+    // speed/phase, stamina), so illegal/out-of-turn plays are rejected here.
     [Command]
-    public void CmdPlayCardAt(int handIndex)
+    public void CmdPlayCard(int cardId)
     {
         if (BoundPlayer == null || BoundPlayer.handManager == null) return;
-        var cards = BoundPlayer.handManager.cardsInHand;
-        if (handIndex < 0 || handIndex >= cards.Count) return;
 
-        var cardGO = cards[handIndex];
+        var db = CardDatabase.Instance;
+        GameObject cardGO = null;
+        foreach (var go in BoundPlayer.handManager.cardsInHand)
+        {
+            var d = go != null ? go.GetComponent<CardDisplay>()?.cardData : null;
+            if (d != null && db != null && db.Id(d) == cardId) { cardGO = go; break; }
+        }
+
         var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
-        if (data == null) return;
+        if (data != null) BoundPlayer.TryPlayCard(cardGO, data);
 
-        BoundPlayer.TryPlayCard(cardGO, data);
+        // Always re-sync: a successful play already changed the hand, but on a reject / no-match
+        // (e.g. the client re-dropped a card that's already gone) this rebuilds the client's hand so
+        // the card it optimistically froze on drop becomes interactive again.
+        ServerPushHand();
     }
 
     #endregion
@@ -223,6 +269,90 @@ public class NetworkPlayerSeat : NetworkBehaviour
     {
         var player = GameManager.Instance != null ? GameManager.Instance.DisplayPlayerForSeat(seat) : null;
         return player != null ? player.handManager : null;
+    }
+
+    #endregion
+
+    #region Board + stats sync (server → all clients; public info)
+
+    // Snapshot every synced zone as parallel arrays: zoneCounts[i] = number of cards in the i-th
+    // zone (SyncedZones order), cardIds = all card ids concatenated in that same zone order. Two
+    // flat int[] avoid nested-array serialization and let the client clear every zone deterministically.
+    [Server]
+    private void ServerPushBoard()
+    {
+        if (BoundPlayer == null) return;
+        var db = CardDatabase.Instance;
+        var counts = new List<int>();
+        var ids = new List<int>();
+
+        foreach (var zone in BoundPlayer.SyncedZones())
+        {
+            int n = 0;
+            if (zone != null)
+            {
+                foreach (var go in zone.Cards)
+                {
+                    var d = go != null ? go.GetComponent<CardDisplay>()?.cardData : null;
+                    ids.Add(db != null ? db.Id(d) : -1);
+                    n++;
+                }
+            }
+            counts.Add(n);
+        }
+
+        RpcSyncBoard(counts.ToArray(), ids.ToArray());
+    }
+
+    // Rebuild this seat's board into the DISPLAY-mapped player's zones (local → bottom, opp → top).
+    // The host is skipped — it holds the real, authoritative board objects.
+    [ClientRpc]
+    private void RpcSyncBoard(int[] zoneCounts, int[] cardIds)
+    {
+        if (isServer) return;
+
+        var player = GameManager.Instance != null ? GameManager.Instance.DisplayPlayerForSeat(seatIndex) : null;
+        if (player == null || player.handManager == null) return;
+
+        var prefab = player.handManager.cardPrefab;
+        // Instantiate under handPosition first (known to sit under a Canvas, since hand cards work);
+        // CardZone.AddCard then reparents into the zone. This keeps CardMovement.Awake happy.
+        var parent = player.handManager.handPosition;
+        var db = CardDatabase.Instance;
+
+        int idIndex = 0, zi = 0;
+        foreach (var zone in player.SyncedZones())
+        {
+            int n = zi < zoneCounts.Length ? zoneCounts[zi] : 0;
+            zi++;
+
+            if (zone == null) { idIndex += n; continue; }
+            zone.ClearDisplayCards();
+
+            for (int k = 0; k < n; k++)
+            {
+                int id = idIndex < cardIds.Length ? cardIds[idIndex] : -1;
+                idIndex++;
+
+                var card = db != null ? db.FromId(id) : null;
+                if (card == null || prefab == null) continue;
+
+                var go = parent != null ? Instantiate(prefab, parent) : Instantiate(prefab);
+                var disp = go.GetComponent<CardDisplay>();
+                if (disp != null) { disp.cardData = card; disp.SetFaceUp(true); }
+                CardDisplay.DisableGameplayInteractions(go);   // display-only; activation-over-net is later
+                zone.AddCard(go);
+            }
+        }
+    }
+
+    private void OnStatSynced(int _, int __) => ApplyStatsToClient();
+
+    private void ApplyStatsToClient()
+    {
+        if (isServer) return;   // the host has the real stats
+        var player = GameManager.Instance != null ? GameManager.Instance.DisplayPlayerForSeat(seatIndex) : null;
+        player?.ClientApplyStats(syncHp, syncStamina, syncMaxStamina, syncDefense);
     }
 
     #endregion

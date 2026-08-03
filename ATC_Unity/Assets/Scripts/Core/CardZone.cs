@@ -41,6 +41,10 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
     public List<GameObject> Cards { get; } = new List<GameObject>();
     public bool IsFull => maxSlots > 0 && Cards.Count >= maxSlots;
 
+    /// Raised after the zone's contents change (add/remove). The networking layer subscribes on the
+    /// server to push the board state to clients. No-op offline.
+    public event System.Action OnChanged;
+
     public void AddCard(GameObject card)
     {
         var parent = anchor != null ? anchor : transform;
@@ -48,12 +52,23 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
         card.transform.localRotation = Quaternion.identity;
         Cards.Add(card);
         RefreshLayout();
+        OnChanged?.Invoke();
     }
 
     public void RemoveCard(GameObject card)
     {
         Cards.Remove(card);
         RefreshLayout();
+        OnChanged?.Invoke();
+    }
+
+    // Client-side: destroy every display card and empty the zone, so it can be rebuilt from the
+    // synced board snapshot. Does not raise OnChanged (clients don't push).
+    public void ClearDisplayCards()
+    {
+        foreach (var go in Cards)
+            if (go != null) Destroy(go);
+        Cards.Clear();
     }
 
     public void RefreshLayout()

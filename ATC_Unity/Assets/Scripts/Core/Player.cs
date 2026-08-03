@@ -98,6 +98,17 @@ public class Player : MonoBehaviour
 
     public void ResetStamina() => Stamina = maxStamina;
 
+    // Client-side: overwrite stats from a synced snapshot (the host is authoritative). PlayerStatsUI
+    // polls these each frame, so the UI updates automatically. maxHp / maxDefense are constant and
+    // identical on both machines, so they don't need syncing.
+    public void ClientApplyStats(int hp, int stamina, int maxStaminaValue, int defense)
+    {
+        CurrentHp = hp;
+        Stamina = stamina;
+        maxStamina = maxStaminaValue;
+        Defense = defense;
+    }
+
     public void AdjustDefense(int delta)
     {
         int next = Defense + delta;
@@ -462,6 +473,11 @@ public class Player : MonoBehaviour
         yield return talentZone;
         yield return auraZone;
     }
+
+    // Public, stable-order enumeration of every zone whose contents are network-synced (board
+    // permanents + discard + exile). The server snapshot and the client rebuild iterate this in the
+    // same order, so per-zone counts line up.
+    public IEnumerable<CardZone> SyncedZones() => AllZones();
 
     private IEnumerable<CardZone> EquipmentZones()
     {

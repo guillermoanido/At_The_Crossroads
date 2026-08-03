@@ -59,12 +59,15 @@ public class MatchInput : MonoBehaviour
         if (!IsOnline() || NetworkServer.active)
             return hand.Owner != null && hand.Owner.TryPlayCard(cardGO, data);
 
-        // A pure client sends the intent; the host validates and the hand sync reflects the outcome.
+        // A pure client sends the card's STABLE id (not a race-prone list index — the client hand
+        // is an async mirror that can shift under it). Freeze the dropped card immediately so a
+        // snap-back can't be re-dropped and fire a duplicate/stale command before the hand re-syncs.
         var seat = LocalSeat();
-        if (seat == null) return false;
-        int index = hand.cardsInHand.IndexOf(cardGO);
-        if (index < 0) return false;
-        seat.CmdPlayCardAt(index);
+        var db = CardDatabase.Instance;
+        int id = db != null ? db.Id(data) : -1;
+        if (seat == null || id < 0) return false;
+        seat.CmdPlayCard(id);
+        CardDisplay.DisableGameplayInteractions(cardGO);
         return false;
     }
 
