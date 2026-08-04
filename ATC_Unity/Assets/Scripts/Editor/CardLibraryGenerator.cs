@@ -69,6 +69,10 @@ public static class CardLibraryGenerator
     private static CardAbility Activated(EffectKind e, int amt, Card.SpeedType speed, EffectTarget t = EffectTarget.Controller, int cost = 0)
         => new CardAbility { trigger = Trigger.Activated, effect = e, amount = amt, target = t, activationSpeed = speed, activationCost = cost, tapToActivate = true };
 
+    // Always on while the card is in play — queried, never fired.
+    private static CardAbility Static(EffectKind e, int amt)
+        => new CardAbility { trigger = Trigger.Static, effect = e, amount = amt, target = EffectTarget.Controller, tapToActivate = false };
+
     private static CardAbility Strike(int multiplier = 1, int bonus = 0, bool destroysWeapon = false)
         => new CardAbility
         {
@@ -103,7 +107,7 @@ public static class CardLibraryGenerator
         W("Iron Skin",        Card.CardType.Talent,    Card.SpeedType.Channel, 2, 8,  "Start of turn: Gain 1 Block",                          A(Upkeep(EffectKind.GainBlock, 1))),
         W("Hurl",             Card.CardType.Attack,    Card.SpeedType.Channel, 1, 8,  "Strike: Deal double damage. Destroy this weapon.",     A(Strike(multiplier: 2, destroysWeapon: true))),
         W("Sunder",           Card.CardType.Skill,     Card.SpeedType.Channel, 2, 9,  "Destroy target equipment.",                            A(OnPlay(EffectKind.DestroyTargetEquipment, 0))),
-        W("Unrelenting Rage", Card.CardType.Talent,    Card.SpeedType.Channel, 2, 9,  "Your attacks cost 1 less."),
+        W("Unrelenting Rage", Card.CardType.Talent,    Card.SpeedType.Channel, 2, 9,  "Your Strike cards cost 1 less Stamina (minimum 0).", A(Static(EffectKind.ReduceStrikeCost, 1))),
         W("Layered Armour",   Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "Start of turn: Lose 1 Stamina. You can equip 1 more Armour.", A(Upkeep(EffectKind.LoseStamina, 1))),
         W("Tower Shield",     Card.CardType.Shield,    Card.SpeedType.Channel, 3, 10, "Activate (Reflex) — Gain 3 Block",                     A(Activated(EffectKind.GainBlock, 3, Card.SpeedType.Reflex))),
         W("Greatclub",        Card.CardType.Weapon,    Card.SpeedType.Channel, 3, 10, "Activate (Channel) — Deal 4 damage.",                  A(Activated(EffectKind.DealDamage, 4, Card.SpeedType.Channel, EffectTarget.Opponent))),

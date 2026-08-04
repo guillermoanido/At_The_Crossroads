@@ -10,6 +10,11 @@ public enum Trigger
     OnUpkeep,
     OnControllerTakeDamage,
     OnDestroyed,
+
+    // Always on while the card is in play — never "fired", only asked about (e.g. a Talent that
+    // makes your attacks cheaper). Keep new values at the END: the numbers are serialized on the
+    // card assets, so reordering would silently rewrite every card.
+    Static,
 }
 
 public class DamageEvent
@@ -61,6 +66,10 @@ public enum EffectKind
     ReturnTargetEquipmentToHand,
     IncreaseMaxStamina,
     Strike,
+
+    // Static (trigger = Static): while this card is in play, every card of yours that grants a
+    // Strike costs `amount` less stamina to play, never below 0.
+    ReduceStrikeCost,
 }
 
 public enum EffectTarget

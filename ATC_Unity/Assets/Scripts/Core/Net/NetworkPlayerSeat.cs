@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
@@ -35,6 +37,13 @@ public class NetworkPlayerSeat : NetworkBehaviour
     [SyncVar(hook = nameof(OnStatSynced))] private int syncStamina = 3;
     [SyncVar(hook = nameof(OnStatSynced))] private int syncMaxStamina = 3;
     [SyncVar(hook = nameof(OnStatSynced))] private int syncDefense;
+
+    // Whose turn it is, who holds priority and which phase the match is in. Public information,
+    // and the same on every seat — clients don't run the turn loop, so without this their phase
+    // indicator and "can I act?" checks would be stuck on the defaults forever.
+    [SyncVar(hook = nameof(OnPhaseSynced))] private GameManager.GamePhase syncPhase;
+    [SyncVar(hook = nameof(OnActiveSeatSynced))] private int syncActiveSeat = -1;
+    [SyncVar(hook = nameof(OnPrioritySeatSynced))] private int syncPrioritySeat = -1;
 
     private bool boardDirty;   // server: a zone changed, push the board snapshot next Update
 
@@ -78,6 +87,10 @@ public class NetworkPlayerSeat : NetworkBehaviour
         if (BoundPlayer != null)
             foreach (var zone in BoundPlayer.SyncedZones())
                 if (zone != null) zone.OnChanged -= MarkBoardDirty;
+
+        // A seat that leaves mid-choice would otherwise strand the effect waiting for it, and with
+        // it the whole stack. Answer the open request as a cancel on the way out.
+        if (HasPendingTargetRequest) ServerFinishTargetRequest(null);
     }
 
     // Server: mirror the authoritative stats (SyncVars only send on change) and flush a board
@@ -91,7 +104,7 @@ public class NetworkPlayerSeat : NetworkBehaviour
         syncMaxStamina = BoundPlayer.MaxStamina;
         syncDefense = BoundPlayer.Defense;
 
-        if (boardDirty) { boardDirty = false; ServerPushBoard(); }
+        if (boardDirty) ServerPushBoard();   // clears the flag itself
     }
 
     private void MarkBoardDirty() => boardDirty = true;
@@ -108,6 +121,10 @@ public class NetworkPlayerSeat : NetworkBehaviour
         // know our own seat, this may land in the wrong slot; OnStartLocalPlayer re-renders.)
         if (!isLocalPlayer)
             RenderOpponentHand(handCount);
+
+        // Seed the turn/phase view: hooks only fire on a change, so a seat that spawns already
+        // holding the current values would never push them.
+        ApplyMatchStateToClient();
     }
 
     public override void OnStopClient() => clientSeats.Remove(this);
@@ -134,6 +151,10 @@ public class NetworkPlayerSeat : NetworkBehaviour
         // before we knew our own seat, so it may have gone to the wrong slot.
         foreach (var s in clientSeats)
             if (!s.isLocalPlayer) s.RenderOpponentHand(s.handCount);
+
+        // Turn/priority are stored as SEAT indices and read back through the display mapping, so
+        // they only resolve correctly now that we know which seat is ours.
+        ApplyMatchStateToClient();
     }
 
     #endregion
@@ -189,6 +210,28 @@ public class NetworkPlayerSeat : NetworkBehaviour
         // (e.g. the client re-dropped a card that's already gone) this rebuilds the client's hand so
         // the card it optimistically froze on drop becomes interactive again.
         ServerPushHand();
+    }
+
+    // Activate a permanent this seat controls (double-click in play). The client only knows a
+    // picture of the board, so it names the card by its instance id and the host looks up the real
+    // object. Ownership is checked here; TryActivateCard re-checks priority, phase, tap and stamina.
+    [Command]
+    public void CmdActivateCard(int cardInstanceId)
+    {
+        if (BoundPlayer == null) return;
+
+        var cardGO = CardInstance.Find(cardInstanceId);
+        var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+        if (data == null) return;
+
+        var zone = cardGO.GetComponentInParent<CardZone>();
+        if (zone == null || !BoundPlayer.OwnsZone(zone))
+        {
+            Debug.Log($"[Net] Seat {seatIndex} tried to activate a card it doesn't control — ignored.");
+            return;
+        }
+
+        BoundPlayer.TryActivateCard(cardGO, data);
     }
 
     #endregion
@@ -276,8 +319,9 @@ public class NetworkPlayerSeat : NetworkBehaviour
     #region Board + stats sync (server → all clients; public info)
 
     // Snapshot every synced zone as parallel arrays: zoneCounts[i] = number of cards in the i-th
-    // zone (SyncedZones order), cardIds = all card ids concatenated in that same zone order. Two
-    // flat int[] avoid nested-array serialization and let the client clear every zone deterministically.
+    // zone (SyncedZones order); cardIds / instanceIds are all cards concatenated in that same zone
+    // order. Flat int[] avoid nested-array serialization and let the client clear every zone
+    // deterministically. The instance id is what lets a client point back at an exact card.
     [Server]
     private void ServerPushBoard()
     {
@@ -285,6 +329,7 @@ public class NetworkPlayerSeat : NetworkBehaviour
         var db = CardDatabase.Instance;
         var counts = new List<int>();
         var ids = new List<int>();
+        var instances = new List<int>();
 
         foreach (var zone in BoundPlayer.SyncedZones())
         {
@@ -295,19 +340,21 @@ public class NetworkPlayerSeat : NetworkBehaviour
                 {
                     var d = go != null ? go.GetComponent<CardDisplay>()?.cardData : null;
                     ids.Add(db != null ? db.Id(d) : -1);
+                    instances.Add(CardInstance.EnsureId(go));
                     n++;
                 }
             }
             counts.Add(n);
         }
 
-        RpcSyncBoard(counts.ToArray(), ids.ToArray());
+        boardDirty = false;
+        RpcSyncBoard(counts.ToArray(), ids.ToArray(), instances.ToArray());
     }
 
     // Rebuild this seat's board into the DISPLAY-mapped player's zones (local → bottom, opp → top).
     // The host is skipped — it holds the real, authoritative board objects.
     [ClientRpc]
-    private void RpcSyncBoard(int[] zoneCounts, int[] cardIds)
+    private void RpcSyncBoard(int[] zoneCounts, int[] cardIds, int[] instanceIds)
     {
         if (isServer) return;
 
@@ -320,30 +367,60 @@ public class NetworkPlayerSeat : NetworkBehaviour
         var parent = player.handManager.handPosition;
         var db = CardDatabase.Instance;
 
-        int idIndex = 0, zi = 0;
+        int cardIndex = 0, zoneIndex = 0;
         foreach (var zone in player.SyncedZones())
         {
-            int n = zi < zoneCounts.Length ? zoneCounts[zi] : 0;
-            zi++;
+            int n = zoneIndex < zoneCounts.Length ? zoneCounts[zoneIndex] : 0;
+            zoneIndex++;
 
-            if (zone == null) { idIndex += n; continue; }
+            if (zone == null) { cardIndex += n; continue; }
             zone.ClearDisplayCards();
 
             for (int k = 0; k < n; k++)
             {
-                int id = idIndex < cardIds.Length ? cardIds[idIndex] : -1;
-                idIndex++;
+                int cardId = cardIndex < cardIds.Length ? cardIds[cardIndex] : -1;
+                int instanceId = cardIndex < instanceIds.Length ? instanceIds[cardIndex] : CardInstance.None;
+                cardIndex++;
 
-                var card = db != null ? db.FromId(id) : null;
+                var card = db != null ? db.FromId(cardId) : null;
                 if (card == null || prefab == null) continue;
 
                 var go = parent != null ? Instantiate(prefab, parent) : Instantiate(prefab);
-                var disp = go.GetComponent<CardDisplay>();
-                if (disp != null) { disp.cardData = card; disp.SetFaceUp(true); }
-                CardDisplay.DisableGameplayInteractions(go);   // display-only; activation-over-net is later
+                var display = go.GetComponent<CardDisplay>();
+                if (display != null) { display.cardData = card; display.SetFaceUp(true); }
+
+                CardInstance.Bind(go, instanceId);
+                ConfigureMirroredCard(go, zone);
                 zone.AddCard(go);
             }
         }
+    }
+
+    // A client's board card is a picture of the host's: never dragged and never resolved locally,
+    // but it must still hover-preview and be clickable when an effect asks this player to choose a
+    // target. In the discard/exile piles it stays fully inert so the click reaches the pile browser
+    // underneath — cards there are never legal targets anyway.
+    private static void ConfigureMirroredCard(GameObject cardGO, CardZone zone)
+    {
+        var movement = cardGO.GetComponent<CardMovement>();
+        if (movement != null) movement.enabled = false;
+
+        var actions = cardGO.GetComponent<CardBoardActions>();
+        if (actions == null) return;
+
+        bool isPile = zone.Kind == CardZone.ZoneKind.Discard || zone.Kind == CardZone.ZoneKind.Exile;
+        actions.SetMirrored(true);
+        actions.enabled = !isPile;
+    }
+
+    // Publish any board change that is still queued for the next Update. Called before a target
+    // request goes out so the client's copy — and the instance ids in it — already match the ids
+    // the request is about to name.
+    [Server]
+    public static void ServerFlushBoards()
+    {
+        foreach (var seat in serverSeats)
+            if (seat != null && seat.boardDirty) seat.ServerPushBoard();
     }
 
     private void OnStatSynced(int _, int __) => ApplyStatsToClient();
@@ -353,6 +430,145 @@ public class NetworkPlayerSeat : NetworkBehaviour
         if (isServer) return;   // the host has the real stats
         var player = GameManager.Instance != null ? GameManager.Instance.DisplayPlayerForSeat(seatIndex) : null;
         player?.ClientApplyStats(syncHp, syncStamina, syncMaxStamina, syncDefense);
+    }
+
+    private void ApplyMatchStateToClient()
+    {
+        if (isServer) return;   // the host runs the turn loop itself
+        GameManager.Instance?.ClientApplyTurnState(syncPhase, syncActiveSeat, syncPrioritySeat);
+    }
+
+    #endregion
+
+    #region Remote targeting (host asks, the owning client answers)
+
+    // How long the host waits for a client to pick before giving up. The stack is paused for the
+    // whole match while a request is open, so it must never wait forever.
+    private const float TargetRequestTimeout = 60f;
+
+    private int targetRequestId;
+    private List<Targetable> pendingTargets;
+    private Action<Targetable> onTargetChosen;
+    private Action onTargetCancelled;
+    private Coroutine targetTimeout;
+
+    private bool HasPendingTargetRequest => pendingTargets != null;
+
+    /// Server: ask this seat's remote player to pick one of the cards matching `filter`. The legal
+    /// set is worked out here, on the authority, and only the resulting ids cross the wire — the
+    /// client cannot widen its own choices.
+    [Server]
+    public void ServerRequestTarget(Predicate<Targetable> filter, string prompt,
+                                    Action<Targetable> onChosen, Action onCancel)
+    {
+        var targets = TargetingService.Collect(filter);
+        if (targets.Count == 0)
+        {
+            Debug.Log($"[Net] Seat {seatIndex} has no legal target — the effect fizzles.");
+            onCancel?.Invoke();
+            return;
+        }
+
+        // Never strand an older request: answering it as a cancel keeps its effect moving.
+        if (HasPendingTargetRequest) ServerFinishTargetRequest(null);
+
+        // Make sure the client's board (and the ids in it) is current before naming ids to it.
+        ServerFlushBoards();
+
+        var instanceIds = new int[targets.Count];
+        for (int i = 0; i < targets.Count; i++)
+            instanceIds[i] = CardInstance.EnsureId(targets[i].gameObject);
+
+        targetRequestId++;
+        pendingTargets = targets;
+        onTargetChosen = onChosen;
+        onTargetCancelled = onCancel;
+        targetTimeout = StartCoroutine(ExpireTargetRequest(targetRequestId));
+
+        Debug.Log($"[Net] Asking seat {seatIndex} to choose 1 of {targets.Count} target(s).");
+        TargetChooseTarget(targetRequestId, instanceIds, prompt);
+    }
+
+    // Delivered to the one client that must choose: light up its own copies of those cards and
+    // report back whatever it picks (or a cancel).
+    [TargetRpc]
+    private void TargetChooseTarget(int requestId, int[] instanceIds, string prompt)
+    {
+        var service = TargetingService.Instance;
+        var targets = ResolveLocalTargets(instanceIds);
+
+        if (service == null || targets.Count == 0)
+        {
+            Debug.LogWarning($"[Net] Target request {requestId} could not be shown ({targets.Count} of " +
+                             $"{instanceIds.Length} card(s) found locally) — answering as a cancel.");
+            CmdAnswerTarget(requestId, CardInstance.None);
+            return;
+        }
+
+        service.RequestFrom(
+            targets,
+            chosen => CmdAnswerTarget(requestId, CardInstance.IdOf(chosen.gameObject)),
+            () => CmdAnswerTarget(requestId, CardInstance.None),
+            requester: GameManager.Instance != null ? GameManager.Instance.LocalDisplayPlayer : null,
+            prompt: prompt);
+    }
+
+    // The client's answer. `CardInstance.None` means it cancelled (or could not choose).
+    [Command]
+    private void CmdAnswerTarget(int requestId, int cardInstanceId)
+    {
+        if (!HasPendingTargetRequest || requestId != targetRequestId) return;   // stale answer
+
+        Targetable chosen = null;
+        foreach (var target in pendingTargets)
+        {
+            if (target == null) continue;
+            if (CardInstance.IdOf(target.gameObject) != cardInstanceId) continue;
+            chosen = target;
+            break;
+        }
+
+        ServerFinishTargetRequest(chosen);
+    }
+
+    // Turn the ids the host sent into this machine's own card objects.
+    private static List<Targetable> ResolveLocalTargets(int[] instanceIds)
+    {
+        var targets = new List<Targetable>();
+        if (instanceIds == null) return targets;
+
+        foreach (int id in instanceIds)
+        {
+            var cardGO = CardInstance.Find(id);
+            var target = cardGO != null ? cardGO.GetComponent<Targetable>() : null;
+            if (target != null) targets.Add(target);
+        }
+        return targets;
+    }
+
+    // Deliberately not [Server]: this also runs while the server is shutting down, and the effect
+    // waiting on the answer must always be released or the stack hangs.
+    private void ServerFinishTargetRequest(Targetable chosen)
+    {
+        var chosenCallback = onTargetChosen;
+        var cancelCallback = onTargetCancelled;
+
+        pendingTargets = null;
+        onTargetChosen = null;
+        onTargetCancelled = null;
+        if (targetTimeout != null) { StopCoroutine(targetTimeout); targetTimeout = null; }
+
+        if (chosen != null) chosenCallback?.Invoke(chosen);
+        else cancelCallback?.Invoke();
+    }
+
+    private IEnumerator ExpireTargetRequest(int requestId)
+    {
+        yield return new WaitForSeconds(TargetRequestTimeout);
+
+        if (!HasPendingTargetRequest || requestId != targetRequestId) yield break;
+        Debug.LogWarning($"[Net] Seat {seatIndex} did not choose a target in time — cancelling so play can continue.");
+        ServerFinishTargetRequest(null);
     }
 
     #endregion
@@ -366,12 +582,23 @@ public class NetworkPlayerSeat : NetworkBehaviour
             seat.responsePending = prioritized != null && seat.BoundPlayer == prioritized;
     }
 
-    // Mark whose turn it is across all seats. Server-only.
-    public static void ServerRefreshTurn()
+    // Publish the shared turn state — active player, priority holder and phase — to every seat.
+    // Server-only, and a no-op offline (no seats are registered).
+    public static void ServerRefreshMatchState()
     {
-        var active = GameManager.Instance != null ? GameManager.Instance.ActivePlayer : null;
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+
         foreach (var seat in serverSeats)
-            seat.isActiveTurn = seat.BoundPlayer == active;
+            if (seat != null) seat.ServerApplyMatchState(gm);
+    }
+
+    private void ServerApplyMatchState(GameManager gm)
+    {
+        isActiveTurn = BoundPlayer == gm.ActivePlayer;
+        syncPhase = gm.CurrentPhase;
+        syncActiveSeat = gm.SeatOf(gm.ActivePlayer);
+        syncPrioritySeat = gm.SeatOf(gm.ControllingPlayer);
     }
 
     public static NetworkPlayerSeat ForPlayer(Player player)
@@ -397,6 +624,10 @@ public class NetworkPlayerSeat : NetworkBehaviour
     }
 
     private void OnHandCountChanged(int _, int now) => RenderOpponentHand(now);
+
+    private void OnPhaseSynced(GameManager.GamePhase _, GameManager.GamePhase __) => ApplyMatchStateToClient();
+    private void OnActiveSeatSynced(int _, int __) => ApplyMatchStateToClient();
+    private void OnPrioritySeatSynced(int _, int __) => ApplyMatchStateToClient();
 
     #endregion
 }

@@ -42,7 +42,23 @@ public class EffectRunner : MonoBehaviour
     private IEnumerator RunSequence(List<CardAbility> abilities, EffectContext ctx)
     {
         foreach (var a in abilities)
+        {
+            Debug.Log($"[Effect] {Describe(a, ctx)}");
             yield return ResolveOne(a, ctx);
+        }
+    }
+
+    // One readable line per ability so the console reads like a play-by-play: who is doing what,
+    // to whom, and how big it is.
+    private static string Describe(CardAbility a, EffectContext ctx)
+    {
+        string source = ctx.sourceCardData != null ? ctx.sourceCardData.cardName : "?";
+        string controller = ctx.controller != null ? ctx.controller.name : "?";
+        string target = a.target == EffectTarget.Opponent
+            ? (ctx.opponent != null ? ctx.opponent.name : "opponent")
+            : controller;
+
+        return $"{controller} resolves {source}: {a.effect} {a.amount} → {target}";
     }
 
     private IEnumerator ResolveOne(CardAbility a, EffectContext ctx)
@@ -50,16 +66,20 @@ public class EffectRunner : MonoBehaviour
         switch (a.effect)
         {
             case EffectKind.DestroyTargetCard:
-                yield return PickTarget(ctx, t => TargetFilters.IsOpponentCardInPlay(t, ctx.controller), t => t.Owner.SendToDiscard(t.gameObject));
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentCardInPlay(t, ctx.controller),
+                    "Choose an enemy card in play to destroy", t => t.Owner.SendToDiscard(t.gameObject));
                 break;
             case EffectKind.DestroyTargetEquipment:
-                yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller), t => t.Owner.SendToDiscard(t.gameObject));
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller),
+                    "Choose an enemy equipment to destroy", t => t.Owner.SendToDiscard(t.gameObject));
                 break;
             case EffectKind.ReturnTargetToHand:
-                yield return PickTarget(ctx, t => TargetFilters.IsOpponentCardInPlay(t, ctx.controller), t => t.Owner.ReturnToHand(t.gameObject));
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentCardInPlay(t, ctx.controller),
+                    "Choose an enemy card in play to return to its owner's hand", t => t.Owner.ReturnToHand(t.gameObject));
                 break;
             case EffectKind.ReturnTargetEquipmentToHand:
-                yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller), t => t.Owner.ReturnToHand(t.gameObject));
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller),
+                    "Choose an enemy equipment to return to its owner's hand", t => t.Owner.ReturnToHand(t.gameObject));
                 break;
             case EffectKind.Scry:
                 yield return DoScry(ctx, a.amount);
@@ -119,16 +139,19 @@ public class EffectRunner : MonoBehaviour
     }
 
 
-    private IEnumerator PickTarget(EffectContext ctx, System.Predicate<Targetable> filter, System.Action<Targetable> onChosen)
+    // Pause the effect until its controller picks a card. NetworkTargeting decides WHICH machine
+    // is asked: offline (and for the host's own player) that is this one, otherwise the prompt is
+    // sent to the client that owns the card and the answer comes back over the wire.
+    private IEnumerator PickTarget(EffectContext ctx, System.Predicate<Targetable> filter, string prompt,
+                                   System.Action<Targetable> onChosen)
     {
-        if (TargetingService.Instance == null) yield break;
-
         bool done = false;
-        TargetingService.Instance.Request(
+        NetworkTargeting.Request(
+            chooser: ctx.controller,
             filter: filter,
+            prompt: prompt,
             onChosen: t => { if (t != null && t.Owner != null) onChosen(t); done = true; },
-            onCancel: () => done = true,
-            requester: ctx.controller);
+            onCancel: () => done = true);
 
         yield return new WaitUntil(() => done);
     }
@@ -142,33 +165,67 @@ public class EffectRunner : MonoBehaviour
         yield return new WaitUntil(() => !panel.IsOpen);
     }
 
-    // Strike: pick one of YOUR weapons; it attacks the opponent for its damage (× multiplier
-    // + bonus) WITHOUT tapping, then is optionally destroyed. Fizzles if you have no weapon.
-    private IEnumerator DoStrike(EffectContext ctx, CardAbility a)
+    // Strike: pick one of YOUR weapons in play and swing with it. Fizzles if you have no weapon.
+    private IEnumerator DoStrike(EffectContext ctx, CardAbility strike)
     {
         if (ctx.controller == null) yield break;
 
         yield return PickTarget(
             ctx,
             t => TargetFilters.IsOwnWeaponInPlay(t, ctx.controller),
-            t =>
-            {
-                int mult = Mathf.Max(1, a.strikeDamageMultiplier);
-                int dealt = Mathf.Max(0, WeaponAttackDamage(t.Data) * mult + a.strikeBonusDamage);
-                if (ctx.opponent != null && dealt > 0)
-                    ctx.opponent.TakeDamage(dealt, t.gameObject, t.Data);
-                if (a.strikeDestroysWeapon && t.Owner != null)
-                    t.Owner.SendToDiscard(t.gameObject);
-            });
+            "Choose one of your weapons to strike with",
+            weapon => ResolveStrike(ctx, strike, weapon));
     }
 
-    // A weapon's attack damage is the amount on its first Activated DealDamage ability.
-    private static int WeaponAttackDamage(Card weapon)
+    // Striking runs the weapon's OWN activated ability — for free, and without tapping it, which is
+    // the whole point of a strike card. So the weapon does everything it normally does (a Greatclub
+    // deals its 4), with the strike card's damage multiplier and bonus folded in on top.
+    private void ResolveStrike(EffectContext ctx, CardAbility strike, Targetable weapon)
     {
-        if (weapon == null || weapon.abilities == null) return 0;
-        foreach (var ab in weapon.abilities)
-            if (ab != null && ab.trigger == Trigger.Activated && ab.effect == EffectKind.DealDamage)
-                return ab.amount;
-        return 0;
+        var weaponContext = ctx.controller.BuildContext(weapon.gameObject, weapon.Data);
+        bool struck = false;
+
+        foreach (var ability in ActivatedAbilities(weapon.Data))
+        {
+            var scaled = ScaleForStrike(ability, strike);
+            if (scaled.effect == EffectKind.DealDamage)
+                Debug.Log($"[Strike] {ctx.controller.name} strikes with {weapon.Data?.cardName}: " +
+                          $"{ability.amount} × {Mathf.Max(1, strike.strikeDamageMultiplier)} " +
+                          $"{(strike.strikeBonusDamage >= 0 ? "+" : "-")} {Mathf.Abs(strike.strikeBonusDamage)} " +
+                          $"= {scaled.amount} damage");
+
+            ApplyInstant(scaled, weaponContext);
+            struck = true;
+        }
+
+        if (!struck)
+            Debug.Log($"[Strike] {weapon.Data?.cardName} has no activated ability to strike with.");
+
+        var owner = weapon.Owner;
+        if (strike.strikeDestroysWeapon && owner != null) owner.SendToDiscard(weapon.gameObject);
+    }
+
+    private static IEnumerable<CardAbility> ActivatedAbilities(Card weapon)
+    {
+        if (weapon == null || weapon.abilities == null) yield break;
+        foreach (var ability in weapon.abilities)
+            if (ability != null && ability.trigger == Trigger.Activated && ability.effect != EffectKind.None)
+                yield return ability;
+    }
+
+    // A copy of the weapon's ability with the strike card's scaling applied. Only damage scales —
+    // Hurl doubles it, Heavy Swing adds 2; everything else the weapon does happens as printed.
+    private static CardAbility ScaleForStrike(CardAbility weaponAbility, CardAbility strike)
+    {
+        if (weaponAbility.effect != EffectKind.DealDamage) return weaponAbility;
+
+        int multiplier = Mathf.Max(1, strike.strikeDamageMultiplier);
+        return new CardAbility
+        {
+            trigger = weaponAbility.trigger,
+            effect = weaponAbility.effect,
+            amount = Mathf.Max(0, weaponAbility.amount * multiplier + strike.strikeBonusDamage),
+            target = weaponAbility.target,
+        };
     }
 }

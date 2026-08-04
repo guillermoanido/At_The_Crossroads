@@ -76,7 +76,18 @@ public class CardDisplay : MonoBehaviour
         if (cardNameText != null) cardNameText.text = cardData.cardName;
         if (cardEffectText != null) cardEffectText.text = cardData.effectDescription;
         if (speedText != null) speedText.text = cardData.speedType.ToString();
-        if (costText != null) costText.text = cardData.energyCost.ToString();
+        if (costText != null) costText.text = EffectiveCost().ToString();
+    }
+
+    // Show what the card costs its owner right now, not its printed cost — a Talent in play can
+    // discount it. Player.RefreshHandCosts re-renders the hand whenever the board changes.
+    private int EffectiveCost()
+    {
+        if (cardData == null) return 0;
+
+        var movement = GetComponent<CardMovement>();
+        var owner = movement != null ? movement.Owner : null;
+        return owner != null ? owner.StaminaCostOf(cardData) : cardData.energyCost;
     }
 
     // Toggle the front-only elements (name, effect, speed, cost). Used to reveal just the back
@@ -99,7 +110,6 @@ public class CardDisplay : MonoBehaviour
     public static void DisableGameplayInteractions(GameObject clone)
     {
         var move = clone.GetComponent<CardMovement>();       if (move != null) move.enabled = false;
-        var drag = clone.GetComponent<DragUIObject>();        if (drag != null) drag.enabled = false;
         var actions = clone.GetComponent<CardBoardActions>(); if (actions != null) actions.enabled = false;
     }
 }

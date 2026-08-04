@@ -54,6 +54,24 @@ public class Player : MonoBehaviour
         Stamina = maxStamina;
         CurrentHp = maxHp;
         Defense = maxDefense;
+
+        // Cards in hand can get cheaper while they sit there (a discount Talent entering play), so
+        // re-render the hand whenever this player's board changes.
+        foreach (var zone in BoardZones())
+            if (zone != null) zone.OnChanged += RefreshHandCosts;
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var zone in BoardZones())
+            if (zone != null) zone.OnChanged -= RefreshHandCosts;
+    }
+
+    private void RefreshHandCosts()
+    {
+        if (handManager == null) return;
+        foreach (var cardGO in handManager.cardsInHand)
+            if (cardGO != null) cardGO.GetComponent<CardDisplay>()?.UpdateCardDisplay();
     }
 
     private void ConfigureZoneKinds()
@@ -134,10 +152,13 @@ public class Player : MonoBehaviour
             sourceCardData = sourceCardData
         };
 
-        FireTriggersOnBoard(Trigger.OnControllerTakeDamage, dmg);
-        if (dmg.amount <= 0) return;
+        int blockBefore = Defense;
+        int hpBefore = CurrentHp;
 
-        int absorbed = Mathf.Min(Defense, dmg.amount);
+        FireTriggersOnBoard(Trigger.OnControllerTakeDamage, dmg);
+        int afterReduction = dmg.amount;
+
+        int absorbed = Mathf.Max(0, Mathf.Min(Defense, dmg.amount));
         if (absorbed > 0)
         {
             Defense -= absorbed;
@@ -145,6 +166,23 @@ public class Player : MonoBehaviour
         }
 
         if (dmg.amount > 0) AdjustHp(-dmg.amount);
+
+        LogDamage(amount, afterReduction, absorbed, blockBefore, hpBefore, sourceCardData);
+    }
+
+    // Damage silently vanishing into the Block pool is the single most confusing thing to watch, so
+    // spell the whole chain out: what was thrown, what shields ate, and what actually reached HP.
+    private void LogDamage(int incoming, int afterReduction, int absorbed, int blockBefore, int hpBefore, Card source)
+    {
+        string from = source != null ? source.cardName : "an effect";
+        string reduced = afterReduction != incoming ? $", reduced to {afterReduction}" : "";
+        string blocked = absorbed > 0
+            ? $"{absorbed} blocked (Block {blockBefore}→{Defense})"
+            : $"nothing blocked (Block {blockBefore})";
+        int toHp = hpBefore - CurrentHp;
+
+        Debug.Log($"[Damage] {name} hit for {incoming} by {from}{reduced} → {blocked}, " +
+                  $"{toHp} to HP ({hpBefore}→{CurrentHp}).");
     }
 
     #endregion
@@ -176,6 +214,38 @@ public class Player : MonoBehaviour
 
     #region Playing Cards
 
+    /// What `card` costs this player to play RIGHT NOW: its printed cost minus every static
+    /// discount their board grants, never below 0. Always use this instead of `Card.energyCost` —
+    /// the printed number is only the starting point.
+    public int StaminaCostOf(Card card)
+    {
+        if (card == null) return 0;
+
+        int cost = card.energyCost;
+        if (card.GrantsStrike) cost -= StaticAmount(EffectKind.ReduceStrikeCost);
+        return Mathf.Max(0, cost);
+    }
+
+    // Total of every Static ability of this kind across this player's board. Several copies stack.
+    private int StaticAmount(EffectKind effect)
+    {
+        int total = 0;
+        foreach (var zone in BoardZones())
+        {
+            if (zone == null) continue;
+            foreach (var cardGO in zone.Cards)
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                if (data == null || data.abilities == null) continue;
+
+                foreach (var ability in data.abilities)
+                    if (ability != null && ability.trigger == Trigger.Static && ability.effect == effect)
+                        total += ability.amount;
+            }
+        }
+        return total;
+    }
+
     public bool TryPlayCard(GameObject cardGO, Card cardData)
     {
         if (!CanPlay(cardData, out string reason))
@@ -185,13 +255,18 @@ public class Player : MonoBehaviour
         }
 
         var zone = ZoneFor(cardData.cardType);
-        SpendStamina(cardData.energyCost);
+        int cost = StaminaCostOf(cardData);
+        int staminaBefore = Stamina;
+
+        SpendStamina(cost);
         handManager.RemoveCardFromHand(cardGO);
         zone.AddCard(cardGO);
         FreezeCardInteractions(cardGO);
         SyncBoardActionsForZone(cardGO, zone);
 
-        Debug.Log($"[Play] {name} played {cardData.cardName} → {zone.name}");
+        string discount = cost != cardData.energyCost ? $" (printed {cardData.energyCost}, discounted)" : "";
+        Debug.Log($"[Play] {name} played {cardData.cardName} for {cost} stamina{discount} " +
+                  $"({staminaBefore}→{Stamina}) → {zone.name}");
 
         PushToStack(cardGO, cardData, Trigger.OnPlay);
         return true;
@@ -248,6 +323,12 @@ public class Player : MonoBehaviour
 
     private void PushToStack(GameObject cardGO, Card cardData, Trigger trigger)
     {
+        // Nothing to resolve = nothing to respond to. A permanent whose only ability fires later
+        // (Iron Skin's upkeep block, a weapon you activate in Combat) would otherwise put an EMPTY
+        // item on the stack, handing priority to the opponent and parking a Pass button on their
+        // screen for a card that does nothing yet.
+        if (cardData == null || !cardData.HasAbilityFor(trigger)) return;
+
         if (GameStack.Instance != null)
             GameStack.Instance.Push(new StackItem { controller = this, sourceCardGO = cardGO, sourceCardData = cardData, trigger = trigger });
         else if (EffectRunner.Instance != null)
@@ -261,7 +342,7 @@ public class Player : MonoBehaviour
             foreach (var cardGO in handManager.cardsInHand)
             {
                 var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
-                if (data != null && data.speedType == Card.SpeedType.Reflex && Stamina >= data.energyCost)
+                if (data != null && data.speedType == Card.SpeedType.Reflex && Stamina >= StaminaCostOf(data))
                     return true;
             }
         }
@@ -303,9 +384,10 @@ public class Player : MonoBehaviour
 
         if (!SpeedAllowedThisPhase(card.speedType, out reason)) return false;
 
-        if (Stamina < card.energyCost)
+        int cost = StaminaCostOf(card);
+        if (Stamina < cost)
         {
-            reason = $"Not enough stamina ({Stamina}/{card.energyCost})";
+            reason = $"Not enough stamina ({Stamina}/{cost})";
             return false;
         }
 
@@ -479,6 +561,16 @@ public class Player : MonoBehaviour
     // same order, so per-zone counts line up.
     public IEnumerable<CardZone> SyncedZones() => AllZones();
 
+    /// True when this player owns `zone`. Used server-side to reject a client asking to act on a
+    /// card that isn't theirs.
+    public bool OwnsZone(CardZone zone)
+    {
+        if (zone == null) return false;
+        foreach (var mine in AllZones())
+            if (mine == zone) return true;
+        return false;
+    }
+
     private IEnumerable<CardZone> EquipmentZones()
     {
         yield return weaponZone;
@@ -541,8 +633,6 @@ public class Player : MonoBehaviour
     {
         var movement = cardGO.GetComponent<CardMovement>();
         if (movement != null) movement.enabled = false;
-        var drag = cardGO.GetComponent<DragUIObject>();
-        if (drag != null) drag.enabled = false;
 
         if (CardPreview.Instance != null) CardPreview.Instance.Hide();
     }

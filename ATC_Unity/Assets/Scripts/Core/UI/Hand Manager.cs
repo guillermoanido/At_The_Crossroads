@@ -31,8 +31,6 @@ public class HandManager : MonoBehaviour
     /// subscribes on the server to push the new hand state to clients. No-op offline.
     public event System.Action OnHandChanged;
 
-    public bool ShowFaceUp => showFaceUp;
-
     public void SetOwner(Player player) => Owner = player;
 
     public void AddCardToHand(Card cardData)

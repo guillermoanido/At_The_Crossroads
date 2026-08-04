@@ -50,6 +50,12 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
         var parent = anchor != null ? anchor : transform;
         card.transform.SetParent(parent, false);
         card.transform.localRotation = Quaternion.identity;
+
+        // A card that leaves a hand for a zone is on the table — every zone (board, discard, exile)
+        // is public, so reveal it. Without this, cards played out of the opponent's hand kept the
+        // face-down look their hand was flipped to and the host saw card backs on the mat.
+        card.GetComponent<CardDisplay>()?.SetFaceUp(true);
+
         Cards.Add(card);
         RefreshLayout();
         OnChanged?.Invoke();

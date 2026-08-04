@@ -79,6 +79,9 @@ public class GameStack : MonoBehaviour
         StackItem item = items[top];
         items.RemoveAt(top);
 
+        Debug.Log($"[Stack] Resolving {item.sourceCardData?.cardName} ({item.trigger}) " +
+                  $"for {item.controller?.name} — {items.Count} item(s) left below it.");
+
         if (item.controller != null && item.sourceCardData != null && EffectRunner.Instance != null)
             yield return EffectRunner.Instance.RunAbilities(
                 item.sourceCardData,

@@ -23,5 +23,15 @@ MonoBehaviour:
   intRequired: 0
   wisRequired: 0
   dexRequired: 0
-  effectDescription: Your attacks cost 1 less.
-  abilities: []
+  effectDescription: Your Strike cards cost 1 less Stamina (minimum 0).
+  abilities:
+  - trigger: 5
+    effect: 18
+    amount: 1
+    target: 1
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0

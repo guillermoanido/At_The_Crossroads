@@ -206,15 +206,3 @@ public class ScryEntryClick : MonoBehaviour, IPointerClickHandler
         if (panel != null) panel.SelectIndex(index);
     }
 }
-
-public class ScryButton : MonoBehaviour
-{
-    [SerializeField] private ScryPanel panel;
-    [SerializeField] private DeckManager deck;
-    [SerializeField] private int count = 3;
-
-    public void Trigger()
-    {
-        if (panel != null) panel.Open(deck, count);
-    }
-}

@@ -16,6 +16,11 @@ public class MatchInput : MonoBehaviour
         Instance = this;
     }
 
+    /// True when this machine may change game state directly — offline, or as the host. A pure
+    /// client must send an intent instead; changing anything locally would silently drift away from
+    /// the authoritative board.
+    public static bool HasLocalAuthority => !IsOnline() || NetworkServer.active;
+
     // Hook the phase-advance Button's OnClick to this.
     public void RequestAdvancePhase()
     {
@@ -56,7 +61,7 @@ public class MatchInput : MonoBehaviour
         if (hand == null || data == null) return false;
 
         // Offline, or the host (which is authoritative), plays directly and reports the result.
-        if (!IsOnline() || NetworkServer.active)
+        if (HasLocalAuthority)
             return hand.Owner != null && hand.Owner.TryPlayCard(cardGO, data);
 
         // A pure client sends the card's STABLE id (not a race-prone list index — the client hand
@@ -69,6 +74,36 @@ public class MatchInput : MonoBehaviour
         seat.CmdPlayCard(id);
         CardDisplay.DisableGameplayInteractions(cardGO);
         return false;
+    }
+
+    // Activate a permanent already in play (double-click). Offline and on the host the owner
+    // resolves it directly; a pure client names the card by its instance id and lets the host
+    // validate priority, phase, tap state and stamina. Returns true when the intent was accepted
+    // for processing — online that means "sent", not "resolved".
+    public static bool ActivateCard(GameObject cardGO)
+    {
+        if (cardGO == null) return false;
+
+        var data = cardGO.GetComponent<CardDisplay>() != null ? cardGO.GetComponent<CardDisplay>().cardData : null;
+        if (data == null || data.FirstActivated() == null) return false;
+
+        if (HasLocalAuthority)
+        {
+            var owner = Targetable.OwnerOf(cardGO);
+            if (owner == null) return false;
+
+            // Online the host still owns both boards, so keep it from operating the client's cards.
+            if (IsOnline() && owner != GameManager.Instance.LocalDisplayPlayer) return false;
+
+            return owner.TryActivateCard(cardGO, data);
+        }
+
+        var seat = LocalSeat();
+        int instanceId = CardInstance.IdOf(cardGO);
+        if (seat == null || instanceId == CardInstance.None) return false;
+
+        seat.CmdActivateCard(instanceId);
+        return true;
     }
 
     private static bool IsOnline()

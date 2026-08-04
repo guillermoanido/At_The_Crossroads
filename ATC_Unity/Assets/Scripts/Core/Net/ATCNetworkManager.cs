@@ -1,3 +1,5 @@
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using Mirror;
 using UnityEngine;
 
@@ -10,7 +12,14 @@ using UnityEngine;
 /// "Online Mode" OFF and simply never press Host/Client to play locally as before.
 public class ATCNetworkManager : NetworkManager
 {
+    [Header("LAN")]
+    [Tooltip("Show the host's own LAN address on screen while online, so the other PC knows what to type into the Client field.")]
+    [SerializeField] private bool showLanAddress = true;
+
     private bool matchStarted;
+    private string cachedLanEndpoint;
+
+    private bool Online => GameManager.Instance == null || GameManager.Instance.OnlineMode;
 
     public override void Start()
     {
@@ -22,9 +31,59 @@ public class ATCNetworkManager : NetworkManager
 
         // Offline mode keeps networking dormant and hides the connect HUD so nobody
         // accidentally hosts. Online mode shows it. (No GameManager yet = treat as online.)
-        bool online = GameManager.Instance == null || GameManager.Instance.OnlineMode;
         var hud = GetComponent<NetworkManagerHUD>();
-        if (hud != null) hud.enabled = online;
+        if (hud != null) hud.enabled = Online;
+    }
+
+    // Two PCs on one LAN need exactly one thing that isn't on screen anywhere: the host's address.
+    // Print it under Mirror's connect HUD so the second player can type it in and press Client.
+    private void OnGUI()
+    {
+        if (!showLanAddress || !Online) return;
+        if (NetworkClient.isConnected || NetworkServer.active) return;
+
+        GUILayout.BeginArea(new Rect(10, 118, 420, 60));
+        GUILayout.Label($"This PC on the LAN:  {LanEndpoint}");
+        GUILayout.Label("Host: press Host.   Other PC: type that address above, press Client.");
+        GUILayout.EndArea();
+    }
+
+    /// This machine's LAN address and listen port — what the other player must type in. Resolved
+    /// once and cached; enumerating adapters every OnGUI frame would be wasteful.
+    private string LanEndpoint
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(cachedLanEndpoint))
+                cachedLanEndpoint = $"{FindLanAddress()}:{FindListenPort()}";
+            return cachedLanEndpoint;
+        }
+    }
+
+    private static string FindLanAddress()
+    {
+        foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (adapter.OperationalStatus != OperationalStatus.Up) continue;
+            if (adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+
+            foreach (var unicast in adapter.GetIPProperties().UnicastAddresses)
+                if (unicast.Address.AddressFamily == AddressFamily.InterNetwork)
+                    return unicast.Address.ToString();
+        }
+        return "unknown";
+    }
+
+    private static string FindListenPort()
+    {
+        try
+        {
+            return Transport.active != null ? Transport.active.ServerUri().Port.ToString() : "?";
+        }
+        catch
+        {
+            return "?";   // a transport that can't describe itself before starting
+        }
     }
 
     // Server-side, once per connecting client. Instead of a generic avatar we hand the
@@ -83,6 +142,12 @@ public class ATCNetworkManager : NetworkManager
         for (int i = 0; i < 2; i++)
             if (!taken[i]) return i;
         return -1;
+    }
+
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+        CardInstance.ResetIds();   // a new session numbers its cards from scratch
     }
 
     private void TryStartMatch()

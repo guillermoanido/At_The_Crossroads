@@ -58,6 +58,11 @@ public class Card : ScriptableObject
     public bool IsCombatCard
         => cardType == CardType.Weapon || cardType == CardType.Attack;
 
+    /// True when playing this card lets you strike with a weapon (Light Swing, Heavy Swing, Hurl).
+    /// Cost-reduction talents key off this rather than the card type, so an Attack that doesn't
+    /// actually strike is not discounted.
+    public bool GrantsStrike => HasEffect(EffectKind.Strike);
+
     public CardAbility FirstActivated()
     {
         if (abilities == null) return null;
@@ -65,5 +70,25 @@ public class Card : ScriptableObject
             if (a != null && a.trigger == Trigger.Activated)
                 return a;
         return null;
+    }
+
+    /// Whether this card has anything to run for `trigger`. Matches EffectRunner's own filter, so
+    /// callers can skip work the runner would find nothing to do for.
+    public bool HasAbilityFor(Trigger trigger)
+    {
+        if (abilities == null) return false;
+        foreach (var a in abilities)
+            if (a != null && a.trigger == trigger && a.effect != EffectKind.None)
+                return true;
+        return false;
+    }
+
+    private bool HasEffect(EffectKind effect)
+    {
+        if (abilities == null) return false;
+        foreach (var a in abilities)
+            if (a != null && a.effect == effect)
+                return true;
+        return false;
     }
 }

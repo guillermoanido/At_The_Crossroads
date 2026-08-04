@@ -65,6 +65,18 @@ public class GameManager : MonoBehaviour
     // display remap. Used to decide "is this my card?" for hover/inspection in online play.
     public Player LocalDisplayPlayer => DisplayPlayerForSeat(LocalSeat);
 
+    /// Client-side: adopt the turn state the host published. Clients never run the turn loop, so
+    /// without this their phase indicator and every "is it my turn?" check would sit on the
+    /// defaults all match. Seats are mapped through the display slots, like the rest of the view.
+    public void ClientApplyTurnState(GamePhase phase, int activeSeat, int prioritySeat)
+    {
+        CurrentPhase = phase;
+        ActivePlayer = DisplayPlayerForSeatOrNull(activeSeat);
+        ControllingPlayer = DisplayPlayerForSeatOrNull(prioritySeat);
+    }
+
+    private Player DisplayPlayerForSeatOrNull(int seat) => seat >= 0 ? DisplayPlayerForSeat(seat) : null;
+
     public float GetScaleForZone(CardZone.ZoneKind kind)
     {
         switch (kind)
@@ -94,7 +106,11 @@ public class GameManager : MonoBehaviour
 
     private void Update() => ApplyLiveScales();
 
-    public void GivePriorityTo(Player player) => ControllingPlayer = player;
+    public void GivePriorityTo(Player player)
+    {
+        ControllingPlayer = player;
+        NetworkPlayerSeat.ServerRefreshMatchState();   // no-op offline / on clients
+    }
 
     private void ApplyLiveScales()
     {
@@ -199,6 +215,7 @@ public class GameManager : MonoBehaviour
     {
         CurrentPhase = phase;
         Debug.Log($"[Phase] {ActivePlayer.name} → {phase}");
+        NetworkPlayerSeat.ServerRefreshMatchState();   // no-op offline / on clients
 
         if (phase == GamePhase.Draw) ResolveDrawPhase();
     }
@@ -221,6 +238,6 @@ public class GameManager : MonoBehaviour
     {
         ActivePlayer = player;
         ControllingPlayer = player;
-        NetworkPlayerSeat.ServerRefreshTurn(); // no-op offline / on clients
+        NetworkPlayerSeat.ServerRefreshMatchState();   // no-op offline / on clients
     }
 }

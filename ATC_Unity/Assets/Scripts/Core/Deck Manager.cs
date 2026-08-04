@@ -12,8 +12,6 @@ public class DeckManager : MonoBehaviour
     [Tooltip("If true, also loads every Card asset under Resources/Cards into this deck on Awake. Turn off to use only the Inspector list.")]
     [SerializeField] private bool loadFromResources = true;
 
-    public int CardsRemaining => allCards.Count;
-
     private void Awake()
     {
         if (deckDefinition != null) LoadFromDefinition(deckDefinition);
