@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 40b8a1e9e397e2d4eb0c781ad9e0f987, type: 3}
+  m_Name: Rewind
+  m_EditorClassIdentifier: Assembly-CSharp::Card
+  cardName: Rewind
+  cardType: 9
+  speedType: 0
+  energyCost: 1
+  deckCost: 1
+  damageMin: 0
+  damageMax: 0
+  strRequired: 0
+  intRequired: 9
+  wisRequired: 0
+  dexRequired: 0
+  effectDescription: Return target card on the stack to its owner's hand.
+  abilities:
+  - trigger: 0
+    effect: 31
+    amount: 0
+    target: 1
+    amountSource: 0
+    costScope: 0
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0

@@ -30,6 +30,8 @@ MonoBehaviour:
     effect: 1
     amount: 1
     target: 0
+    amountSource: 0
+    costScope: 0
     activationSpeed: 0
     activationCost: 0
     tapToActivate: 1
