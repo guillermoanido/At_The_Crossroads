@@ -24,4 +24,28 @@ MonoBehaviour:
   wisRequired: 0
   dexRequired: 6
   effectDescription: 'Strike: -1 Damage. Apply Bleed 1.'
-  abilities: []
+  abilities:
+  - trigger: 0
+    effect: 17
+    amount: 1
+    target: 0
+    amountSource: 0
+    costScope: 0
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: -1
+    strikeDestroysWeapon: 0
+  - trigger: 0
+    effect: 22
+    amount: 1
+    target: 0
+    amountSource: 0
+    costScope: 0
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0

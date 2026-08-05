@@ -24,4 +24,16 @@ MonoBehaviour:
   wisRequired: 0
   dexRequired: 8
   effectDescription: 'Strike: Reflex'
-  abilities: []
+  abilities:
+  - trigger: 0
+    effect: 17
+    amount: 1
+    target: 0
+    amountSource: 0
+    costScope: 0
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0
