@@ -12,6 +12,8 @@ public class DeckManager : MonoBehaviour
     [Tooltip("If true, also loads every Card asset under Resources/Cards into this deck on Awake. Turn off to use only the Inspector list.")]
     [SerializeField] private bool loadFromResources = true;
 
+    public bool HasCards => allCards.Count > 0;
+
     private void Awake()
     {
         if (deckDefinition != null) LoadFromDefinition(deckDefinition);
@@ -58,11 +60,16 @@ public class DeckManager : MonoBehaviour
         return result;
     }
 
-    public void SetTopOrder(IList<Card> newOrder)
+    /// Resolve a Scry: lift `count` cards off the top and put `keepInOrder` back, in that order.
+    /// Anything not kept has been binned by the player and never returns to the deck.
+    public void ReplaceTop(int count, IList<Card> keepInOrder)
     {
-        if (newOrder == null) return;
-        for (int i = 0; i < newOrder.Count && i < allCards.Count; i++)
-            allCards[i] = newOrder[i];
+        int lifted = Mathf.Min(count, allCards.Count);
+        allCards.RemoveRange(0, lifted);
+
+        if (keepInOrder == null) return;
+        for (int i = keepInOrder.Count - 1; i >= 0; i--)
+            allCards.Insert(0, keepInOrder[i]);
     }
 
     public void Shuffle()

@@ -20,10 +20,21 @@ public class PlayerStatsUI : MonoBehaviour
         if (player == null) return;
         if (hpText != null) hpText.text = $"HP {player.CurrentHp}/{player.MaxHp}";
         if (staminaText != null) staminaText.text = $"STA {player.Stamina}/{player.MaxStamina}";
-        if (defenseText != null)
-            defenseText.text = player.MaxDefense > 0
-                ? $"DEF {player.Defense}/{player.MaxDefense}"
-                : $"DEF {player.Defense}";
+        if (defenseText != null) defenseText.text = DefenceLine();
+    }
+
+    // Divine Shield and Burn ride along on the defence line: both matter constantly once the
+    // cleric cards are in play, and this way they show up without any extra scene wiring.
+    private string DefenceLine()
+    {
+        string line = player.MaxDefense > 0
+            ? $"DEF {player.Defense}/{player.MaxDefense}"
+            : $"DEF {player.Defense}";
+
+        if (player.DivineShield > 0) line += $"  |  SHIELD {player.DivineShield}";
+        if (player.Burn > 0) line += $"  |  BURN {player.Burn}";
+        if (player.Bleed > 0) line += $"  |  BLEED {player.Bleed}";
+        return line;
     }
 
     public void HpUp()        { if (player != null) player.AdjustHp(+hpAdjustStep); }

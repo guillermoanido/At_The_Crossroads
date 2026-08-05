@@ -32,6 +32,32 @@ public class GameStack : MonoBehaviour
         UpdatePassButton();
     }
 
+    /// True when `cardGO` is the source of an item still waiting on the stack. Counterspells target
+    /// through this: the card object itself is what the player clicks.
+    public bool HoldsCard(GameObject cardGO)
+    {
+        if (cardGO == null) return false;
+        foreach (var item in items)
+            if (item != null && item.sourceCardGO == cardGO) return true;
+        return false;
+    }
+
+    /// Pull the item sourced by `cardGO` off the stack so it never resolves — the card itself is
+    /// left where it is for the caller to dispose of (discard, exile, back to hand).
+    public StackItem RemoveCard(GameObject cardGO)
+    {
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            if (items[i] == null || items[i].sourceCardGO != cardGO) continue;
+
+            var removed = items[i];
+            items.RemoveAt(i);
+            UpdatePassButton();
+            return removed;
+        }
+        return null;
+    }
+
     public void Push(StackItem item)
     {
         if (item == null || item.controller == null) return;

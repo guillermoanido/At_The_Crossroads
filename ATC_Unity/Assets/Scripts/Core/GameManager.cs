@@ -178,6 +178,10 @@ public class GameManager : MonoBehaviour
 
     private void EndTurn()
     {
+        // Status damage and expiring Block resolve for BOTH players at the end of every turn.
+        if (player1 != null) player1.ResolveEndOfTurn();
+        if (player2 != null) player2.ResolveEndOfTurn();
+
         if (queuedExtraTurns > 0)
         {
             queuedExtraTurns--;
@@ -204,6 +208,28 @@ public class GameManager : MonoBehaviour
 
     public bool IsActivePlayer(Player player) => ActivePlayer == player;
 
+    #region Match end
+
+    /// The winner, once someone has won. Null while the match is still running.
+    public Player Winner { get; private set; }
+    public bool MatchOver => Winner != null;
+
+    /// Called after any HP change. Running out of life loses you the match.
+    public void CheckForDefeat(Player player)
+    {
+        if (MatchOver || player == null || player.CurrentHp > 0) return;
+        DeclareWinner(Opponent(player), $"{player.name} is out of life");
+    }
+
+    public void DeclareWinner(Player winner, string reason)
+    {
+        if (MatchOver || winner == null) return;
+        Winner = winner;
+        Debug.Log($"[Match] {winner.name} WINS — {reason}.");
+    }
+
+    #endregion
+
     public Player Opponent(Player player)
     {
         if (player == player1) return player2;
@@ -222,6 +248,11 @@ public class GameManager : MonoBehaviour
 
     private void ResolveDrawPhase()
     {
+        // "For the rest of this turn" ends here, for both players — a Silence cast on your turn
+        // shouldn't still be muzzling the opponent during theirs.
+        if (player1 != null) player1.ClearTurnEffects();
+        if (player2 != null) player2.ClearTurnEffects();
+
         ResolveUpkeep();
         if (skipNextDraw) skipNextDraw = false;
         else ActivePlayer.DrawCard();

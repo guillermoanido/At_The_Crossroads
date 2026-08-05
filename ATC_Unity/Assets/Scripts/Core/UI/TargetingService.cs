@@ -24,6 +24,7 @@ public class TargetingService : MonoBehaviour
     [SerializeField] private GameObject promptRoot;
 
     private readonly List<Targetable> validTargets = new List<Targetable>();
+    private readonly List<CardBoardActions> reEnabledClicks = new List<CardBoardActions>();
     private Action<Targetable> onChosen;
     private Action onCancel;
     private TargetingPromptHUD fallbackPrompt;
@@ -71,6 +72,7 @@ public class TargetingService : MonoBehaviour
             if (target == null) continue;
             validTargets.Add(target);
             target.SetHighlight(true);
+            MakeClickable(target);
         }
 
         if (validTargets.Count == 0)
@@ -148,11 +150,31 @@ public class TargetingService : MonoBehaviour
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) Cancel();
     }
 
+    // Cards in the discard/exile piles keep their click handler switched OFF so a click falls
+    // through to the pile's browser. While they are legal targets they must be clickable, so turn
+    // it on for the duration of the request and put it back afterwards.
+    private void MakeClickable(Targetable target)
+    {
+        var actions = target.GetComponent<CardBoardActions>();
+        if (actions == null || actions.enabled) return;
+
+        actions.enabled = true;
+        reEnabledClicks.Add(actions);
+    }
+
+    private void RestoreClickability()
+    {
+        foreach (var actions in reEnabledClicks)
+            if (actions != null) actions.enabled = false;
+        reEnabledClicks.Clear();
+    }
+
     private void Clear()
     {
         foreach (var target in validTargets)
             if (target != null) target.SetHighlight(false);
 
+        RestoreClickability();
         validTargets.Clear();
         onChosen = null;
         onCancel = null;

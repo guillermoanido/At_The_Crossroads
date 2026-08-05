@@ -37,6 +37,9 @@ public class NetworkPlayerSeat : NetworkBehaviour
     [SyncVar(hook = nameof(OnStatSynced))] private int syncStamina = 3;
     [SyncVar(hook = nameof(OnStatSynced))] private int syncMaxStamina = 3;
     [SyncVar(hook = nameof(OnStatSynced))] private int syncDefense;
+    [SyncVar(hook = nameof(OnStatSynced))] private int syncBurn;
+    [SyncVar(hook = nameof(OnStatSynced))] private int syncBleed;
+    [SyncVar(hook = nameof(OnStatSynced))] private int syncDivineShield;
 
     // Whose turn it is, who holds priority and which phase the match is in. Public information,
     // and the same on every seat — clients don't run the turn loop, so without this their phase
@@ -103,6 +106,9 @@ public class NetworkPlayerSeat : NetworkBehaviour
         syncStamina = BoundPlayer.Stamina;
         syncMaxStamina = BoundPlayer.MaxStamina;
         syncDefense = BoundPlayer.Defense;
+        syncBurn = BoundPlayer.Burn;
+        syncBleed = BoundPlayer.Bleed;
+        syncDivineShield = BoundPlayer.DivineShield;
 
         if (boardDirty) ServerPushBoard();   // clears the flag itself
     }
@@ -429,7 +435,8 @@ public class NetworkPlayerSeat : NetworkBehaviour
     {
         if (isServer) return;   // the host has the real stats
         var player = GameManager.Instance != null ? GameManager.Instance.DisplayPlayerForSeat(seatIndex) : null;
-        player?.ClientApplyStats(syncHp, syncStamina, syncMaxStamina, syncDefense);
+        player?.ClientApplyStats(syncHp, syncStamina, syncMaxStamina, syncDefense,
+                                 syncBurn, syncBleed, syncDivineShield);
     }
 
     private void ApplyMatchStateToClient()

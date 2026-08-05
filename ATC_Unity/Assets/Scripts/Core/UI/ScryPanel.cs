@@ -4,6 +4,9 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+/// The Scry keyword: look at the top X cards of your deck, bin any number of them, and the rest go
+/// back on top in the same order you saw them. There is no reordering — clicking a card only toggles
+/// whether it is being thrown away.
 public class ScryPanel : MonoBehaviour
 {
     [SerializeField] private GameObject root;
@@ -14,8 +17,11 @@ public class ScryPanel : MonoBehaviour
     [Range(0.2f, 1.5f)]
     [SerializeField] private float cardScale = 0.6f;
 
-    [Tooltip("Multiplier applied to the selected entry's scale so it's visually distinguished.")]
-    [SerializeField] private float selectedScaleBoost = 1.15f;
+    [Tooltip("Scale multiplier applied to a card marked for the discard pile, so it visibly shrinks away.")]
+    [SerializeField] private float discardedScale = 0.8f;
+
+    [Tooltip("Tint applied to a card marked for the discard pile.")]
+    [SerializeField] private Color discardedTint = new Color(0.45f, 0.45f, 0.5f);
 
     [Tooltip("Optional in-panel slider driving the shared Popup Card Scale (affects every popup). Auto-wired on Awake.")]
     [SerializeField] private Slider scaleSlider;
@@ -28,10 +34,12 @@ public class ScryPanel : MonoBehaviour
     [SerializeField] private float orderLabelFontSize = 120f;
     [SerializeField] private Color orderLabelColor = new Color(1f, 0.95f, 0.4f);
 
-    private DeckManager activeDeck;
-    private readonly List<Card> currentOrder = new List<Card>();
+    private Player owner;
+    private readonly List<Card> revealed = new List<Card>();
+    private readonly HashSet<int> markedForDiscard = new HashSet<int>();
     private readonly List<GameObject> spawned = new List<GameObject>();
-    private int selectedIndex = -1;
+
+    public bool IsOpen => root != null && root.activeSelf;
 
     private void Awake()
     {
@@ -41,7 +49,7 @@ public class ScryPanel : MonoBehaviour
 
     private void Update()
     {
-        if (spawned.Count > 0) ApplySelectionHighlight();
+        if (spawned.Count > 0) ApplyEntryLooks();
     }
 
     private void WireScaleSlider()
@@ -58,29 +66,45 @@ public class ScryPanel : MonoBehaviour
         value = Mathf.Clamp(value, 0.2f, 1.5f);
         if (GameManager.Instance != null) GameManager.Instance.popupCardScale = value;
         else cardScale = value;
-        ApplySelectionHighlight();
+        ApplyEntryLooks();
     }
 
-    public bool IsOpen => root != null && root.activeSelf;
-
-    public void Open(DeckManager deck, int count)
+    public void Open(Player scryingPlayer, int count)
     {
+        var deck = scryingPlayer != null ? scryingPlayer.deckManager : null;
         if (deck == null || count <= 0) return;
 
-        activeDeck = deck;
-        currentOrder.Clear();
-        currentOrder.AddRange(deck.PeekTop(count));
-        selectedIndex = currentOrder.Count > 0 ? 0 : -1;
+        owner = scryingPlayer;
+        revealed.Clear();
+        revealed.AddRange(deck.PeekTop(count));
+        markedForDiscard.Clear();
 
         RebuildList();
         if (root != null) root.SetActive(true);
-        Debug.Log($"[Scry] {deck.name} → showing top {currentOrder.Count}.");
+        Debug.Log($"[Scry] {owner.name} looks at the top {revealed.Count} card(s) — click any to discard them.");
     }
 
+    /// Marked cards go to the discard pile; everything else returns to the top of the deck in the
+    /// order it was revealed.
     public void Confirm()
     {
-        if (activeDeck != null) activeDeck.SetTopOrder(currentOrder);
-        Debug.Log($"[Scry] Order applied to {(activeDeck != null ? activeDeck.name : "<null>")}.");
+        var kept = new List<Card>();
+        var binned = new List<Card>();
+
+        for (int i = 0; i < revealed.Count; i++)
+        {
+            if (markedForDiscard.Contains(i)) binned.Add(revealed[i]);
+            else kept.Add(revealed[i]);
+        }
+
+        if (owner != null && owner.deckManager != null)
+        {
+            owner.deckManager.ReplaceTop(revealed.Count, kept);
+            foreach (var card in binned) owner.PutCardInDiscard(card);
+        }
+
+        Debug.Log($"[Scry] {(owner != null ? owner.name : "?")} kept {kept.Count} on top " +
+                  $"and discarded {binned.Count}.");
         Close();
     }
 
@@ -88,42 +112,25 @@ public class ScryPanel : MonoBehaviour
     {
         ClearSpawned();
         if (root != null) root.SetActive(false);
-        activeDeck = null;
-        selectedIndex = -1;
+        revealed.Clear();
+        markedForDiscard.Clear();
+        owner = null;
     }
 
-    public void MoveLeft()
+    /// Clicking an entry toggles whether it is being thrown away.
+    public void ToggleDiscard(int index)
     {
-        if (selectedIndex <= 0) return;
-        Swap(selectedIndex, selectedIndex - 1);
-        selectedIndex--;
-        RebuildList();
+        if (index < 0 || index >= revealed.Count) return;
+        if (!markedForDiscard.Remove(index)) markedForDiscard.Add(index);
+        ApplyEntryLooks();
     }
-
-    public void MoveRight()
-    {
-        if (selectedIndex < 0 || selectedIndex >= currentOrder.Count - 1) return;
-        Swap(selectedIndex, selectedIndex + 1);
-        selectedIndex++;
-        RebuildList();
-    }
-
-    public void SelectIndex(int index)
-    {
-        if (index < 0 || index >= currentOrder.Count) return;
-        selectedIndex = index;
-        ApplySelectionHighlight();
-    }
-
-    private void Swap(int a, int b)
-        => (currentOrder[a], currentOrder[b]) = (currentOrder[b], currentOrder[a]);
 
     private void RebuildList()
     {
         ClearSpawned();
-        for (int i = 0; i < currentOrder.Count; i++)
-            spawned.Add(SpawnEntry(i, currentOrder[i]));
-        ApplySelectionHighlight();
+        for (int i = 0; i < revealed.Count; i++)
+            spawned.Add(SpawnEntry(i, revealed[i]));
+        ApplyEntryLooks();
     }
 
     private GameObject SpawnEntry(int index, Card card)
@@ -172,12 +179,19 @@ public class ScryPanel : MonoBehaviour
         labelGO.transform.SetAsLastSibling();
     }
 
-    private void ApplySelectionHighlight()
+    // Cards heading for the discard pile shrink and grey out; the ones staying on top look normal,
+    // numbered in the order they will be drawn.
+    private void ApplyEntryLooks()
     {
         for (int i = 0; i < spawned.Count; i++)
         {
-            float scale = (i == selectedIndex) ? Scale * selectedScaleBoost : Scale;
-            spawned[i].transform.localScale = Vector3.one * scale;
+            if (spawned[i] == null) continue;
+            bool binned = markedForDiscard.Contains(i);
+
+            spawned[i].transform.localScale = Vector3.one * (binned ? Scale * discardedScale : Scale);
+
+            var image = spawned[i].GetComponent<CardDisplay>()?.cardImage;
+            if (image != null) image.color = binned ? discardedTint : Color.white;
         }
     }
 
@@ -203,6 +217,6 @@ public class ScryEntryClick : MonoBehaviour, IPointerClickHandler
     public void OnPointerClick(PointerEventData eventData)
     {
         if (eventData.button != PointerEventData.InputButton.Left) return;
-        if (panel != null) panel.SelectIndex(index);
+        if (panel != null) panel.ToggleDiscard(index);
     }
 }

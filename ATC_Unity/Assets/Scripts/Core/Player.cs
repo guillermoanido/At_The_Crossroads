@@ -41,7 +41,62 @@ public class Player : MonoBehaviour
     public int Defense { get; private set; }
     public int MaxDefense => maxDefense;
 
+    /// Stacking damage-over-time. At the end of every turn they take damage equal to Burn, then
+    /// Burn is halved (rounded down) — so it fades fast but never quite vanishes on its own.
+    public int Burn { get; private set; }
+
+    /// Damage-over-time that only bites if the bleeding player actually took direct damage during
+    /// the turn. Unlike Burn it does not decay.
+    public int Bleed { get; private set; }
+
+    /// A one-shot ward: it prevents up to this much damage from a SINGLE source and is then spent
+    /// entirely, however little it actually stopped. Block is used first so the ward is saved for
+    /// a hit that matters.
+    public int DivineShield { get; private set; }
+
+    // Set by any damage that came from a card, so end-of-turn Bleed knows whether it applies.
+    // Status damage (Burn/Bleed itself) has no source card and does not count.
+    private bool tookDirectDamageThisTurn;
+
+    public int SpellsPlayedThisTurn { get; private set; }
+    public int CardsPlayedThisTurn { get; private set; }
+
     public Player Opponent => GameManager.Instance != null ? GameManager.Instance.Opponent(this) : null;
+
+    #endregion
+
+    #region Turn-scoped effects (cleared when the turn ends)
+
+    // Tithe: the next card this player plays costs this much more.
+    private int nextCardSurcharge;
+
+    // Silence: this player may not play Reflex cards for the rest of the turn.
+    private bool reflexLocked;
+
+    // Divine Intervention: everything is free but no cards may be drawn.
+    private bool freeCostsNoDraw;
+
+    // Bless: stamina handed over at this player's next upkeep.
+    private int queuedUpkeepStamina;
+
+    public bool ReflexLocked => reflexLocked;
+    public bool CanDraw => !freeCostsNoDraw;
+
+    public void AddNextCardSurcharge(int amount) => nextCardSurcharge += Mathf.Max(0, amount);
+    public void LockReflex() => reflexLocked = true;
+    public void MakeCostsFreeButBlockDraws() => freeCostsNoDraw = true;
+    public void QueueUpkeepStamina(int amount) => queuedUpkeepStamina += amount;
+
+    /// Wiped by GameManager as each new turn begins, so "for the rest of this turn" really means
+    /// this turn — whoever's turn it was played on.
+    public void ClearTurnEffects()
+    {
+        nextCardSurcharge = 0;
+        reflexLocked = false;
+        freeCostsNoDraw = false;
+        SpellsPlayedThisTurn = 0;
+        CardsPlayedThisTurn = 0;
+    }
 
     #endregion
 
@@ -67,10 +122,20 @@ public class Player : MonoBehaviour
             if (zone != null) zone.OnChanged -= RefreshHandCosts;
     }
 
+    // Both hands, not just this one: a Tax or Leyline entering MY board changes what the opponent
+    // pays as well, so their card faces have to be re-rendered too.
     private void RefreshHandCosts()
     {
-        if (handManager == null) return;
-        foreach (var cardGO in handManager.cardsInHand)
+        RefreshHandOf(this);
+        RefreshHandOf(Opponent);
+    }
+
+    private static void RefreshHandOf(Player player)
+    {
+        var hand = player != null ? player.handManager : null;
+        if (hand == null) return;
+
+        foreach (var cardGO in hand.cardsInHand)
             if (cardGO != null) cardGO.GetComponent<CardDisplay>()?.UpdateCardDisplay();
     }
 
@@ -119,12 +184,16 @@ public class Player : MonoBehaviour
     // Client-side: overwrite stats from a synced snapshot (the host is authoritative). PlayerStatsUI
     // polls these each frame, so the UI updates automatically. maxHp / maxDefense are constant and
     // identical on both machines, so they don't need syncing.
-    public void ClientApplyStats(int hp, int stamina, int maxStaminaValue, int defense)
+    public void ClientApplyStats(int hp, int stamina, int maxStaminaValue, int defense,
+                                 int burn, int bleed, int divineShield)
     {
         CurrentHp = hp;
         Stamina = stamina;
         maxStamina = maxStaminaValue;
         Defense = defense;
+        Burn = burn;
+        Bleed = bleed;
+        DivineShield = divineShield;
     }
 
     public void AdjustDefense(int delta)
@@ -152,49 +221,197 @@ public class Player : MonoBehaviour
             sourceCardData = sourceCardData
         };
 
+        if (sourceCardData != null) tookDirectDamageThisTurn = true;
+
         int blockBefore = Defense;
+        int shieldBefore = DivineShield;
         int hpBefore = CurrentHp;
 
         FireTriggersOnBoard(Trigger.OnControllerTakeDamage, dmg);
         int afterReduction = dmg.amount;
 
-        int absorbed = Mathf.Max(0, Mathf.Min(Defense, dmg.amount));
-        if (absorbed > 0)
-        {
-            Defense -= absorbed;
-            dmg.amount -= absorbed;
-        }
+        // Block first, then the ward. Block is spent point-for-point and expires at end of turn, so
+        // using it first avoids burning the whole Divine Shield on a hit Block could have eaten.
+        // NOTE: the rules let the DEFENDER choose the order when several reductions apply; there is
+        // no prompt for that yet, so this fixed order stands in for it.
+        dmg.amount -= SpendBlock(dmg.amount);
+        dmg.amount -= SpendDivineShield(dmg.amount);
 
         if (dmg.amount > 0) AdjustHp(-dmg.amount);
 
-        LogDamage(amount, afterReduction, absorbed, blockBefore, hpBefore, sourceCardData);
+        LogDamage(amount, afterReduction, blockBefore, shieldBefore, hpBefore, sourceCardData);
+        GameManager.Instance?.CheckForDefeat(this);
     }
 
-    // Damage silently vanishing into the Block pool is the single most confusing thing to watch, so
-    // spell the whole chain out: what was thrown, what shields ate, and what actually reached HP.
-    private void LogDamage(int incoming, int afterReduction, int absorbed, int blockBefore, int hpBefore, Card source)
+    private int SpendBlock(int incoming)
+    {
+        int absorbed = Mathf.Max(0, Mathf.Min(Defense, incoming));
+        Defense -= absorbed;
+        return absorbed;
+    }
+
+    // The ward stops up to its value from this one source and is then gone entirely — spending it
+    // on a scratch wastes the rest, which is the point of the keyword.
+    private int SpendDivineShield(int incoming)
+    {
+        if (DivineShield <= 0 || incoming <= 0) return 0;
+
+        int absorbed = Mathf.Min(DivineShield, incoming);
+        DivineShield = 0;
+        return absorbed;
+    }
+
+    // Damage silently vanishing into a shield pool is the most confusing thing to watch, so spell
+    // the whole chain out: what was thrown, what each shield ate, and what actually reached HP.
+    private void LogDamage(int incoming, int afterReduction, int blockBefore, int shieldBefore, int hpBefore, Card source)
     {
         string from = source != null ? source.cardName : "an effect";
         string reduced = afterReduction != incoming ? $", reduced to {afterReduction}" : "";
-        string blocked = absorbed > 0
-            ? $"{absorbed} blocked (Block {blockBefore}→{Defense})"
-            : $"nothing blocked (Block {blockBefore})";
+        int blocked = blockBefore - Defense;
+        int shielded = shieldBefore - DivineShield;
         int toHp = hpBefore - CurrentHp;
 
-        Debug.Log($"[Damage] {name} hit for {incoming} by {from}{reduced} → {blocked}, " +
+        string soak = $"{blocked} blocked (Block {blockBefore}→{Defense})";
+        if (shielded > 0 || shieldBefore > 0)
+            soak += $", {shielded} on Divine Shield ({shieldBefore}→{DivineShield})";
+
+        Debug.Log($"[Damage] {name} hit for {incoming} by {from}{reduced} → {soak}, " +
                   $"{toHp} to HP ({hpBefore}→{CurrentHp}).");
+    }
+
+    #endregion
+
+    #region Burn & Divine Shield
+
+    public void AddBurn(int amount)
+    {
+        if (amount <= 0) return;
+        Burn += amount;
+        Debug.Log($"[Burn] {name} now has {Burn} Burn.");
+    }
+
+    public void AddBleed(int amount)
+    {
+        if (amount <= 0) return;
+        Bleed += amount;
+        Debug.Log($"[Bleed] {name} now has {Bleed} Bleed.");
+    }
+
+    /// Clears the whole Burn stack and reports how much was removed (Purifying Flame heals it back).
+    public int ClearBurn()
+    {
+        int removed = Burn;
+        Burn = 0;
+        return removed;
+    }
+
+    public void GainDivineShield(int amount)
+    {
+        if (amount <= 0) return;
+        DivineShield += amount;
+    }
+
+    /// End of every turn, for both players: Bleed bites only if this player actually took direct
+    /// damage during the turn; Burn always bites and is then halved, rounded down. Block expires
+    /// last, so it is still available to soak the status damage that just landed.
+    public void ResolveEndOfTurn()
+    {
+        if (Bleed > 0)
+        {
+            if (tookDirectDamageThisTurn)
+            {
+                Debug.Log($"[Bleed] {name} takes {Bleed} Bleed damage.");
+                TakeDamage(Bleed);
+            }
+            else Debug.Log($"[Bleed] {name} took no direct damage — Bleed doesn't trigger.");
+        }
+
+        if (Burn > 0)
+        {
+            Debug.Log($"[Burn] {name} takes {Burn} Burn damage.");
+            TakeDamage(Burn);
+            Burn /= 2;   // halved, rounded down
+        }
+
+        Defense = 0;                       // Block never survives the turn it was gained in
+        tookDirectDamageThisTurn = false;
+        ResetTriggerBudgets();
+    }
+
+    /// Triggered abilities fire once per turn each, so every card on this board gets a fresh
+    /// allowance when the turn rolls over.
+    private void ResetTriggerBudgets()
+    {
+        foreach (var zone in BoardZones())
+        {
+            if (zone == null) continue;
+            foreach (var cardGO in zone.Cards)
+                if (cardGO != null) cardGO.GetComponent<CardTapState>()?.ResetTriggers();
+        }
+    }
+
+    /// Everything working against this player that isn't damage: the Burn stack and any Condition
+    /// cards hung on them.
+    public void RemoveAllDebuffs()
+    {
+        int burned = ClearBurn();
+        int conditions = 0;
+
+        if (auraZone != null)
+        {
+            foreach (var cardGO in new List<GameObject>(auraZone.Cards))
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                if (data == null || data.cardType != Card.CardType.Condition) continue;
+                SendToDiscard(cardGO);
+                conditions++;
+            }
+        }
+
+        Debug.Log($"[Effect] {name} cleansed {burned} Burn and {conditions} condition(s).");
     }
 
     #endregion
 
     #region Turn
 
-    public void DrawCard() => deckManager.DrawCard(handManager);
+    public void DrawCard()
+    {
+        if (!CanDraw)
+        {
+            Debug.Log($"[Draw] {name} cannot draw this turn.");
+            return;
+        }
+
+        deckManager.DrawCard(handManager);
+        FireTriggersOnBoard(Trigger.OnControllerDraws, null);
+    }
+
+    /// Draw until the deck runs dry (Omniscience). The hand limit still applies, so this stops
+    /// early if the hand fills up rather than silently binning cards.
+    public void DrawEntireDeck()
+    {
+        int drawn = 0;
+        while (deckManager != null && deckManager.HasCards && !handManager.IsHandFull)
+        {
+            DrawCard();
+            drawn++;
+            if (!CanDraw) break;
+        }
+        Debug.Log($"[Draw] {name} drew {drawn} card(s) emptying their deck.");
+    }
 
     public void ResolveUpkeep()
     {
-        Defense = 0;
         ResetStamina();
+
+        if (queuedUpkeepStamina > 0)
+        {
+            Debug.Log($"[Effect] {name} gains {queuedUpkeepStamina} queued stamina at upkeep.");
+            GainStamina(queuedUpkeepStamina);
+            queuedUpkeepStamina = 0;
+        }
+
         UntapBoard();
         FireTriggersOnBoard(Trigger.OnUpkeep, null);
     }
@@ -220,17 +437,29 @@ public class Player : MonoBehaviour
     public int StaminaCostOf(Card card)
     {
         if (card == null) return 0;
+        if (freeCostsNoDraw) return 0;   // Divine Intervention
 
-        int cost = card.energyCost;
-        if (card.GrantsStrike) cost -= StaticAmount(EffectKind.ReduceStrikeCost);
+        // Reductions apply FIRST and bottom out at 0; increases are then added on top. So a card
+        // reduced to 0 and taxed by 1 costs 1, not 0.
+        int cost = Mathf.Max(0, card.energyCost - CostModifier(card, EffectKind.ReduceCost));
+        cost += CostModifier(card, EffectKind.IncreaseCost) + nextCardSurcharge;
         return Mathf.Max(0, cost);
     }
 
-    // Total of every Static ability of this kind across this player's board. Several copies stack.
-    private int StaticAmount(EffectKind effect)
+    // Static cost modifiers reach this player's cards from two directions: their own board
+    // (abilities aimed at the Controller) and the opponent's (abilities aimed at the Opponent).
+    private int CostModifier(Card card, EffectKind effect)
+    {
+        int total = ModifiersOnBoard(this, card, effect, EffectTarget.Controller);
+        var other = Opponent;
+        if (other != null) total += ModifiersOnBoard(other, card, effect, EffectTarget.Opponent);
+        return total;
+    }
+
+    private static int ModifiersOnBoard(Player source, Card card, EffectKind effect, EffectTarget aimedAt)
     {
         int total = 0;
-        foreach (var zone in BoardZones())
+        foreach (var zone in source.BoardZones())
         {
             if (zone == null) continue;
             foreach (var cardGO in zone.Cards)
@@ -239,8 +468,12 @@ public class Player : MonoBehaviour
                 if (data == null || data.abilities == null) continue;
 
                 foreach (var ability in data.abilities)
-                    if (ability != null && ability.trigger == Trigger.Static && ability.effect == effect)
-                        total += ability.amount;
+                {
+                    if (ability == null || ability.trigger != Trigger.Static) continue;
+                    if (ability.effect != effect || ability.target != aimedAt) continue;
+                    if (!card.MatchesCostScope(ability.costScope)) continue;
+                    total += ability.amount;
+                }
             }
         }
         return total;
@@ -255,6 +488,7 @@ public class Player : MonoBehaviour
         }
 
         var zone = ZoneFor(cardData.cardType);
+        bool zoneWasFull = zone.IsFull;
         int cost = StaminaCostOf(cardData);
         int staminaBefore = Stamina;
 
@@ -264,12 +498,78 @@ public class Player : MonoBehaviour
         FreezeCardInteractions(cardGO);
         SyncBoardActionsForZone(cardGO, zone);
 
-        string discount = cost != cardData.energyCost ? $" (printed {cardData.energyCost}, discounted)" : "";
-        Debug.Log($"[Play] {name} played {cardData.cardName} for {cost} stamina{discount} " +
+        string adjusted = cost != cardData.energyCost ? $" (printed {cardData.energyCost}, adjusted)" : "";
+        Debug.Log($"[Play] {name} played {cardData.cardName} for {cost} stamina{adjusted} " +
                   $"({staminaBefore}→{Stamina}) → {zone.name}");
 
+        nextCardSurcharge = 0;   // Tithe taxes the NEXT card only
+
+        // The slot was already full, so something has to go — the player picks which.
+        if (zoneWasFull && EffectRunner.Instance != null)
+            EffectRunner.Instance.RequestZoneReplacement(this, zone);
+
+        RegisterCardPlayed(cardData);
         PushToStack(cardGO, cardData, Trigger.OnPlay);
         return true;
+    }
+
+    /// Drop a card straight into the discard pile, building the object for it — used by Scry, where
+    /// the binned cards were never on the table to begin with.
+    public void PutCardInDiscard(Card data)
+    {
+        if (data == null || discardZone == null || handManager == null) return;
+
+        var prefab = handManager.cardPrefab;
+        if (prefab == null) return;
+
+        var parent = handManager.handPosition;
+        var cardGO = parent != null ? Instantiate(prefab, parent) : Instantiate(prefab);
+
+        var display = cardGO.GetComponent<CardDisplay>();
+        if (display != null) { display.cardData = data; display.SetFaceUp(true); }
+        cardGO.GetComponent<CardMovement>()?.Init(handManager);   // gives it an owner
+
+        discardZone.AddCard(cardGO);
+        FreezeCardInteractions(cardGO);
+        SyncBoardActionsForZone(cardGO, discardZone);
+    }
+
+    // Bookkeeping every "whenever you play…" effect hangs off.
+    private void RegisterCardPlayed(Card cardData)
+    {
+        CardsPlayedThisTurn++;
+        if (cardData.IsSpell)
+        {
+            SpellsPlayedThisTurn++;
+            FireTriggersOnBoard(Trigger.OnControllerPlaysSpell, null);
+        }
+
+        // Vow of Penance watches for a player's second card of the turn — from ANY board, since the
+        // aura punishes whoever overextends, not just its controller.
+        if (CardsPlayedThisTurn == 2) FireSecondCardPenalties();
+    }
+
+    private void FireSecondCardPenalties()
+    {
+        if (EffectRunner.Instance == null) return;
+
+        foreach (var player in new[] { this, Opponent })
+        {
+            if (player == null) continue;
+            foreach (var zone in player.BoardZones())
+            {
+                if (zone == null) continue;
+                foreach (var cardGO in new List<GameObject>(zone.Cards))
+                {
+                    var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                    if (data == null || !data.HasAbilityFor(Trigger.OnAnyPlayerPlaysSecondCard)) continue;
+
+                    // Context controller = the player who overextended, so the penalty lands on them.
+                    EffectRunner.Instance.FireAbilitiesImmediate(
+                        data, MakeContext(cardGO, data), Trigger.OnAnyPlayerPlaysSecondCard);
+                }
+            }
+        }
     }
 
     public bool TryActivateCard(GameObject cardGO, Card cardData)
@@ -337,6 +637,8 @@ public class Player : MonoBehaviour
 
     public bool HasReflexResponse()
     {
+        if (reflexLocked) return false;
+
         if (handManager != null)
         {
             foreach (var cardGO in handManager.cardsInHand)
@@ -370,6 +672,12 @@ public class Player : MonoBehaviour
 
     private bool CanPlay(Card card, out string reason)
     {
+        if (GameManager.Instance != null && GameManager.Instance.MatchOver)
+        {
+            reason = "The match is over";
+            return false;
+        }
+
         if (GameStack.Instance != null && GameStack.Instance.IsResolving)
         {
             reason = "An effect is resolving";
@@ -393,8 +701,8 @@ public class Player : MonoBehaviour
 
         var zone = ZoneFor(card.cardType);
         if (zone == null) { reason = $"No zone configured for {card.cardType}"; return false; }
-        if (zone.IsFull)  { reason = $"{zone.name} is full"; return false; }
 
+        // A full slot is not a refusal: you play the card and then choose which one it replaces.
         reason = null;
         return true;
     }
@@ -426,6 +734,13 @@ public class Player : MonoBehaviour
     private bool SpeedAllowedThisPhase(Card.SpeedType speed, out string reason)
     {
         reason = null;
+
+        if (speed == Card.SpeedType.Reflex && reflexLocked)
+        {
+            reason = "Silenced — no Reflex cards this turn";
+            return false;
+        }
+
         if (speed != Card.SpeedType.Channel) return true;
 
         if (!GameManager.Instance.IsActivePlayer(this))
@@ -455,6 +770,7 @@ public class Player : MonoBehaviour
             case Card.CardType.Talent:    return talentZone;
             case Card.CardType.Aura:      return auraZone;
             case Card.CardType.Condition: return Opponent != null ? Opponent.auraZone : auraZone;
+            // Attack / Spell / Skill / Consumable / Miracle resolve and are done with.
             default:                      return discardZone;
         }
     }
@@ -603,11 +919,23 @@ public class Player : MonoBehaviour
             {
                 var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
                 if (data == null) continue;
+                if (!data.HasAbilityFor(trigger)) continue;
+
+                // Once per turn per card, per the Trigger keyword. Upkeep is naturally once a turn,
+                // but "whenever you play a Spell" would otherwise fire on every spell.
+                var tapState = cardGO.GetComponent<CardTapState>();
+                if (tapState != null && !tapState.TryUseTrigger(trigger)) continue;
 
                 var ctx = MakeContext(cardGO, data);
                 ctx.damage = dmg;
 
-                EffectRunner.Instance.FireAbilitiesImmediate(data, ctx, trigger);
+                // Damage triggers must finish BEFORE the hit lands, so they run synchronously.
+                // Everything else goes through the coroutine path — an upkeep Scry or a
+                // spell-triggered Scry has to be able to pause and wait for the player.
+                if (trigger == Trigger.OnControllerTakeDamage)
+                    EffectRunner.Instance.FireAbilitiesImmediate(data, ctx, trigger);
+                else
+                    EffectRunner.Instance.FireAbilities(data, ctx, trigger);
             }
         }
     }

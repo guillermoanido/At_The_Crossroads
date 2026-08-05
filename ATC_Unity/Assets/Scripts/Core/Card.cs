@@ -29,6 +29,7 @@ public class Card : ScriptableObject
     [Tooltip("Everything this card does. OnPlay fires when played; Activated fires when you click it in play; the rest fire on their trigger.")]
     public List<CardAbility> abilities = new List<CardAbility>();
 
+    // Serialized as ints on every card asset — append only, never reorder.
     public enum CardType
     {
         Accesory,
@@ -42,7 +43,10 @@ public class Card : ScriptableObject
         Skill,
         Spell,
         Talent,
-        Weapon
+        Weapon,
+
+        // The cleric's answer to the mage's Spell: resolves then goes to the discard pile.
+        Miracle,
     }
 
     public enum SpeedType
@@ -53,6 +57,22 @@ public class Card : ScriptableObject
 
     public bool IsEquipment
         => cardType == CardType.Weapon || cardType == CardType.Accesory || cardType == CardType.Armour;
+
+    public bool IsSpell => cardType == CardType.Spell;
+    public bool IsMiracle => cardType == CardType.Miracle;
+
+    /// Whether a cost modifier with this scope applies to this card.
+    public bool MatchesCostScope(CostScope scope)
+    {
+        switch (scope)
+        {
+            case CostScope.StrikeCards: return GrantsStrike;
+            case CostScope.Spells:      return IsSpell;
+            case CostScope.Miracles:    return IsMiracle;
+            case CostScope.AllCards:    return true;
+            default:                    return false;
+        }
+    }
 
     // Combat cards (weapons/attacks) can only be activated during your Combat phase.
     public bool IsCombatCard

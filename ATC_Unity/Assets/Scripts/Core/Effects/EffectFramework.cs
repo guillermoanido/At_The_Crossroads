@@ -3,6 +3,8 @@ using UnityEngine;
 
 #region Triggers & Events
 
+/// WHEN an ability happens. Values are serialized as ints on every card asset, so new entries go
+/// at the END — reordering would silently rewrite the whole card library.
 public enum Trigger
 {
     OnPlay,
@@ -12,9 +14,16 @@ public enum Trigger
     OnDestroyed,
 
     // Always on while the card is in play — never "fired", only asked about (e.g. a Talent that
-    // makes your attacks cheaper). Keep new values at the END: the numbers are serialized on the
-    // card assets, so reordering would silently rewrite every card.
+    // makes your attacks cheaper).
     Static,
+
+    // Fires on cards the CONTROLLER has in play, when that controller does the thing.
+    OnControllerPlaysSpell,
+    OnControllerDraws,
+
+    // Fires when any player plays their SECOND card in a turn — the card's controller in the
+    // context is whoever did it, so a global penalty can hit the right player (Vow of Penance).
+    OnAnyPlayerPlaysSecondCard,
 }
 
 public class DamageEvent
@@ -46,6 +55,7 @@ public class StackItem
 
 #region Ability Data (authored on each Card)
 
+/// WHAT an ability does. Serialized as ints — append only, never reorder.
 public enum EffectKind
 {
     None,
@@ -67,15 +77,71 @@ public enum EffectKind
     IncreaseMaxStamina,
     Strike,
 
-    // Static (trigger = Static): while this card is in play, every card of yours that grants a
-    // Strike costs `amount` less stamina to play, never below 0.
-    ReduceStrikeCost,
+    // Static: while this card is in play, cards matching `costScope` cost `amount` less stamina
+    // (never below 0). Was named ReduceStrikeCost — hence CostScope.StrikeCards being the 0 value,
+    // so cards authored before the scope existed still mean what they meant.
+    ReduceCost,
+    IncreaseCost,
+
+    // Burn: a stacking damage-over-time counter. At its owner's upkeep they take damage equal to
+    // their Burn, then it ticks down by 1.
+    ApplyBurn,
+    RemoveAllBurnAndHeal,
+
+    // Bleed: bites at the end of every turn, but only if the bleeding player took direct damage
+    // during it. Does not decay.
+    ApplyBleed,
+
+    // A shield pool that, unlike Block, does NOT reset at upkeep. Block is spent first.
+    GainDivineShield,
+
+    RemoveAllDebuffs,
+    DrawEntireDeck,
+    RevealOpponentHand,
+
+    ReturnTargetFromDiscardToHand,
+    CastTargetSpellFromDiscard,
+    DestroyTargetCondition,
+
+    DestroyTargetOnStack,
+    ReturnTargetOnStackToHand,
+    RearrangeStack,
+
+    // Turn-scoped rules changes, cleared when the turn ends.
+    IncreaseNextOpponentCardCost,
+    LockOpponentReflex,
+    FreeCostsButNoDraw,
+
+    // Queued for the controller's next upkeep.
+    GainStaminaNextUpkeep,
+
+    DestroySelf,
+    WinIfDeckAndHandEmpty,
 }
 
 public enum EffectTarget
 {
     Opponent,
     Controller,
+}
+
+/// Which cards a cost modifier applies to. StrikeCards is deliberately the 0 value so cards
+/// authored before this field existed keep their original meaning.
+public enum CostScope
+{
+    StrikeCards,
+    Spells,
+    Miracles,
+    AllCards,
+}
+
+/// Where an ability's magnitude comes from. `amount` is always added on top, so "X + 1" is
+/// amount = 1 with the matching source.
+public enum AmountSource
+{
+    Fixed,
+    SpellsInYourDiscard,
+    SpellsYouPlayedThisTurn,
 }
 
 [Serializable]
@@ -92,6 +158,13 @@ public class CardAbility
 
     [Tooltip("Who a damage/reduce effect hits. Block/Life/Draw/Stamina/Scry always affect the controller.")]
     public EffectTarget target = EffectTarget.Opponent;
+
+    [Tooltip("Counts something in play and adds it to Amount, for 'X + 1' abilities. Fixed = just Amount.")]
+    public AmountSource amountSource = AmountSource.Fixed;
+
+    [Header("Cost modifiers only (effect = Reduce/IncreaseCost)")]
+    [Tooltip("Which cards the modifier applies to. Target decides WHOSE cards: Controller = yours, Opponent = theirs.")]
+    public CostScope costScope = CostScope.StrikeCards;
 
     [Header("Activated abilities only (trigger = Activated)")]
     [Tooltip("Speed the ability can be used at. Channel = your main phase only; Reflex = any time.")]
@@ -135,6 +208,33 @@ public static class TargetFilters
 
     public static bool IsOwnWeaponInPlay(Targetable t, Player controller)
         => IsCardInPlay(t) && t.Owner == controller && t.Data != null && t.Data.cardType == Card.CardType.Weapon;
+
+    public static bool IsConditionInPlay(Targetable t)
+        => IsCardInPlay(t) && t.Data != null && t.Data.cardType == Card.CardType.Condition;
+
+    public static bool IsInOwnDiscard(Targetable t, Player controller)
+        => t != null && t.Zone != null && t.Zone.Kind == CardZone.ZoneKind.Discard && t.Owner == controller;
+
+    public static bool IsOwnSkillOrSpellInDiscard(Targetable t, Player controller)
+        => IsInOwnDiscard(t, controller) && t.Data != null
+        && (t.Data.cardType == Card.CardType.Skill || t.Data.cardType == Card.CardType.Spell);
+
+    public static bool IsOwnSpellInDiscard(Targetable t, Player controller)
+        => IsInOwnDiscard(t, controller) && t.Data != null && t.Data.cardType == Card.CardType.Spell;
+
+    /// A card currently waiting on the stack — identified by the card object a stack item points at.
+    public static bool IsOnStack(Targetable t)
+        => t != null && GameStack.Instance != null && GameStack.Instance.HoldsCard(t.gameObject);
+
+    public static bool IsInHandOf(Targetable t, Player player)
+    {
+        var hand = player != null ? player.handManager : null;
+        return t != null && hand != null && hand.cardsInHand.Contains(t.gameObject);
+    }
+
+    /// A card already in `zone` — used when a full equipment slot has to be cleared to make room.
+    public static bool IsInZone(Targetable t, CardZone zone)
+        => t != null && zone != null && t.Zone == zone;
 }
 
 #endregion

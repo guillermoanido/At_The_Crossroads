@@ -20,7 +20,42 @@ public class EffectRunner : MonoBehaviour
 
     public IEnumerator RunAbilities(Card card, EffectContext ctx, Trigger trigger)
     {
-        yield return RunSequence(Collect(card, trigger), ctx);
+        // A weapon that was struck earlier this turn cashes the promise in on this activation.
+        StrikeBonus bonus = default;
+        bool struck = trigger == Trigger.Activated && StrikeCharge.TryTake(ctx.sourceCardGO, out bonus);
+
+        var abilities = Collect(card, trigger);
+        if (struck)
+        {
+            abilities = ApplyStrikeBonus(abilities, bonus);
+            Debug.Log($"[Strike] {card?.cardName} activates with its Strike bonus " +
+                      $"(×{bonus.DamageMultiplier} {(bonus.BonusDamage >= 0 ? "+" : "-")} {Mathf.Abs(bonus.BonusDamage)}).");
+        }
+
+        yield return RunSequence(abilities, ctx);
+
+        if (struck && bonus.DestroysWeapon)
+            Targetable.OwnerOf(ctx.sourceCardGO)?.SendToDiscard(ctx.sourceCardGO);
+    }
+
+    // Damage abilities get the strike scaling; everything else the weapon does is untouched.
+    private static List<CardAbility> ApplyStrikeBonus(List<CardAbility> abilities, StrikeBonus bonus)
+    {
+        var scaled = new List<CardAbility>(abilities.Count);
+        foreach (var ability in abilities)
+        {
+            if (ability.effect != EffectKind.DealDamage) { scaled.Add(ability); continue; }
+
+            scaled.Add(new CardAbility
+            {
+                trigger = ability.trigger,
+                effect = ability.effect,
+                amount = bonus.Scale(ability.amount),
+                target = ability.target,
+                amountSource = ability.amountSource,
+            });
+        }
+        return scaled;
     }
 
     public void FireAbilitiesImmediate(Card card, EffectContext ctx, Trigger trigger)
@@ -81,8 +116,31 @@ public class EffectRunner : MonoBehaviour
                 yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller),
                     "Choose an enemy equipment to return to its owner's hand", t => t.Owner.ReturnToHand(t.gameObject));
                 break;
+            case EffectKind.DestroyTargetCondition:
+                yield return PickTarget(ctx, TargetFilters.IsConditionInPlay,
+                    "Choose a condition to destroy", t => t.Owner.SendToDiscard(t.gameObject));
+                break;
+            case EffectKind.ReturnTargetFromDiscardToHand:
+                yield return PickTarget(ctx, t => TargetFilters.IsOwnSkillOrSpellInDiscard(t, ctx.controller),
+                    "Choose a Skill or Spell in your discard to take back", t => t.Owner.ReturnToHand(t.gameObject));
+                break;
+            case EffectKind.CastTargetSpellFromDiscard:
+                yield return PickTarget(ctx, t => TargetFilters.IsOwnSpellInDiscard(t, ctx.controller),
+                    "Choose a Spell in your discard to cast", t => CastFromDiscard(ctx, t));
+                break;
+            case EffectKind.DestroyTargetOnStack:
+                yield return PickTarget(ctx, TargetFilters.IsOnStack,
+                    "Choose a card on the stack to destroy", t => CounterOnStack(t, toHand: false));
+                break;
+            case EffectKind.ReturnTargetOnStackToHand:
+                yield return PickTarget(ctx, TargetFilters.IsOnStack,
+                    "Choose a card on the stack to return to its owner's hand", t => CounterOnStack(t, toHand: true));
+                break;
+            case EffectKind.OpponentDiscards:
+                yield return DoDiscard(ctx.opponent, EffectiveAmount(a, ctx));
+                break;
             case EffectKind.Scry:
-                yield return DoScry(ctx, a.amount);
+                yield return DoScry(ctx, EffectiveAmount(a, ctx));
                 break;
             case EffectKind.Strike:
                 yield return DoStrike(ctx, a);
@@ -93,49 +151,205 @@ public class EffectRunner : MonoBehaviour
         }
     }
 
+    /// An ability's real magnitude: its authored `amount` plus whatever its AmountSource counts.
+    /// "X + 1" is amount = 1 with the matching source.
+    public static int EffectiveAmount(CardAbility a, EffectContext ctx)
+    {
+        int bonus = 0;
+        switch (a.amountSource)
+        {
+            case AmountSource.SpellsInYourDiscard:
+                bonus = CountSpellsInDiscard(ctx.controller);
+                break;
+            case AmountSource.SpellsYouPlayedThisTurn:
+                bonus = ctx.controller != null ? ctx.controller.SpellsPlayedThisTurn : 0;
+                break;
+        }
+        return a.amount + bonus;
+    }
+
+    private static int CountSpellsInDiscard(Player player)
+    {
+        var discard = player != null ? player.discardZone : null;
+        if (discard == null) return 0;
+
+        int spells = 0;
+        foreach (var cardGO in discard.Cards)
+        {
+            var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+            if (data != null && data.IsSpell) spells++;
+        }
+        return spells;
+    }
+
+    // Countering: take the item off the stack so it never resolves, then dispose of the card. The
+    // card object is already sitting in whatever zone it was played to, so move it from there.
+    private static void CounterOnStack(Targetable target, bool toHand)
+    {
+        if (GameStack.Instance == null) return;
+
+        var removed = GameStack.Instance.RemoveCard(target.gameObject);
+        if (removed == null) return;
+
+        var owner = removed.controller != null ? removed.controller : target.Owner;
+        if (owner == null) return;
+
+        Debug.Log($"[Stack] {removed.sourceCardData?.cardName} was countered — " +
+                  $"{(toHand ? "returned to hand" : "destroyed")}.");
+
+        if (toHand) owner.ReturnToHand(target.gameObject);
+        else owner.SendToDiscard(target.gameObject);
+    }
+
+    // Casting out of the discard pile: pay the spell's current cost, run its OnPlay abilities, then
+    // remove it from the game. Simplification of "you may cast it until end of turn" — you cast it
+    // right now rather than gaining lasting permission.
+    private void CastFromDiscard(EffectContext ctx, Targetable target)
+    {
+        var caster = ctx.controller;
+        var spell = target.Data;
+        if (caster == null || spell == null) return;
+
+        int cost = caster.StaminaCostOf(spell);
+        if (!caster.SpendStamina(cost))
+        {
+            Debug.Log($"[Effect] {caster.name} cannot afford {spell.cardName} from the discard ({cost}).");
+            return;
+        }
+
+        Debug.Log($"[Effect] {caster.name} casts {spell.cardName} from the discard for {cost}, then exiles it.");
+        FireAbilities(spell, caster.BuildContext(target.gameObject, spell), Trigger.OnPlay);
+        caster.SendToExile(target.gameObject);
+    }
+
 
     private void ApplyInstant(CardAbility a, EffectContext ctx)
     {
+        int amount = EffectiveAmount(a, ctx);
+        var aimed = a.target == EffectTarget.Opponent ? ctx.opponent : ctx.controller;
+
         switch (a.effect)
         {
             case EffectKind.DealDamage:
-            {
-                var defender = a.target == EffectTarget.Opponent ? ctx.opponent : ctx.controller;
-                if (defender != null && a.amount > 0)
-                    defender.TakeDamage(a.amount, ctx.sourceCardGO, ctx.sourceCardData);
+                if (aimed != null && amount > 0)
+                    aimed.TakeDamage(amount, ctx.sourceCardGO, ctx.sourceCardData);
                 break;
-            }
             case EffectKind.GainBlock:
-                if (ctx.controller != null) ctx.controller.AdjustDefense(a.amount);
+                ctx.controller?.AdjustDefense(amount);
                 break;
             case EffectKind.GainLife:
-                if (ctx.controller != null) ctx.controller.AdjustHp(a.amount);
+                ctx.controller?.AdjustHp(amount);
                 break;
             case EffectKind.DrawCards:
-                for (int i = 0; i < a.amount && ctx.controller != null; i++) ctx.controller.DrawCard();
+                for (int i = 0; i < amount && ctx.controller != null; i++) ctx.controller.DrawCard();
+                break;
+            case EffectKind.DrawEntireDeck:
+                ctx.controller?.DrawEntireDeck();
                 break;
             case EffectKind.GainStamina:
-                if (ctx.controller != null) ctx.controller.GainStamina(a.amount);
+                ctx.controller?.GainStamina(amount);
                 break;
             case EffectKind.IncreaseMaxStamina:
-                if (ctx.controller != null) ctx.controller.IncreaseMaxStamina(a.amount);
+                ctx.controller?.IncreaseMaxStamina(amount);
                 break;
             case EffectKind.ReduceIncomingDamage:
-                if (ctx.damage != null) ctx.damage.amount = Mathf.Max(0, ctx.damage.amount - a.amount);
+                if (ctx.damage != null) ctx.damage.amount = Mathf.Max(0, ctx.damage.amount - amount);
                 break;
             case EffectKind.LoseStamina:
-                if (ctx.controller != null) ctx.controller.AdjustStamina(-a.amount);
+                ctx.controller?.AdjustStamina(-amount);
                 break;
             case EffectKind.DestroyAllOpponentEquipment:
-                if (ctx.opponent != null) ctx.opponent.DestroyAllEquipment();
+                ctx.opponent?.DestroyAllEquipment();
                 break;
             case EffectKind.OpponentDiscards:
-                if (ctx.opponent != null) ctx.opponent.DiscardFromHand(a.amount);
+                // Fallback only: the normal path is DoDiscard, which lets the discarding player
+                // choose. This branch is reached from the synchronous damage-trigger path, which
+                // cannot pause for a prompt, so it takes from the end of the hand.
+                ctx.opponent?.DiscardFromHand(amount);
                 break;
             case EffectKind.TakeExtraTurn:
-                if (GameManager.Instance != null) GameManager.Instance.QueueExtraTurn();
+                GameManager.Instance?.QueueExtraTurn();
+                break;
+
+            case EffectKind.ApplyBurn:
+                aimed?.AddBurn(amount);
+                break;
+            case EffectKind.ApplyBleed:
+                aimed?.AddBleed(amount);
+                break;
+            case EffectKind.RemoveAllBurnAndHeal:
+            {
+                int cleared = aimed != null ? aimed.ClearBurn() : 0;
+                aimed?.AdjustHp(cleared);
+                Debug.Log($"[Effect] {aimed?.name} shed {cleared} Burn and healed for it.");
+                break;
+            }
+            case EffectKind.GainDivineShield:
+                ctx.controller?.GainDivineShield(amount);
+                break;
+            case EffectKind.RemoveAllDebuffs:
+                ctx.controller?.RemoveAllDebuffs();
+                break;
+            case EffectKind.RevealOpponentHand:
+                RevealHand(ctx.opponent);
+                break;
+
+            case EffectKind.IncreaseNextOpponentCardCost:
+                ctx.opponent?.AddNextCardSurcharge(amount);
+                break;
+            case EffectKind.LockOpponentReflex:
+                ctx.opponent?.LockReflex();
+                break;
+            case EffectKind.FreeCostsButNoDraw:
+                ctx.controller?.MakeCostsFreeButBlockDraws();
+                break;
+            case EffectKind.GainStaminaNextUpkeep:
+                ctx.controller?.QueueUpkeepStamina(amount);
+                break;
+
+            case EffectKind.DestroySelf:
+                if (ctx.sourceCardGO != null)
+                    Targetable.OwnerOf(ctx.sourceCardGO)?.SendToDiscard(ctx.sourceCardGO);
+                break;
+            case EffectKind.WinIfDeckAndHandEmpty:
+                CheckAscension(ctx.controller);
+                break;
+
+            case EffectKind.RearrangeStack:
+                // Needs a drag-to-reorder panel over GameStack's items; the rules hooks exist
+                // (GameStack.RemoveCard / Push) but there is no UI to drive them yet.
+                Debug.LogWarning("[Effect] Rearrange the stack is not implemented yet — Timewatch does nothing.");
                 break;
         }
+    }
+
+    // No reveal UI yet, so the opponent's hand goes to the console. Whoever is reading the log is
+    // the player who cast it; a proper panel is the obvious next step.
+    private static void RevealHand(Player opponent)
+    {
+        var hand = opponent != null ? opponent.handManager : null;
+        if (hand == null) return;
+
+        var names = new List<string>();
+        foreach (var cardGO in hand.cardsInHand)
+        {
+            var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+            names.Add(data != null ? data.cardName : "?");
+        }
+        Debug.Log($"[Reveal] {opponent.name}'s hand ({names.Count}): {string.Join(", ", names)}");
+    }
+
+    private static void CheckAscension(Player player)
+    {
+        if (player == null || GameManager.Instance == null) return;
+
+        bool deckEmpty = player.deckManager == null || !player.deckManager.HasCards;
+        bool handEmpty = player.handManager == null || player.handManager.cardsInHand.Count == 0;
+
+        if (deckEmpty && handEmpty)
+            GameManager.Instance.DeclareWinner(player, "Ascension with an empty deck and hand");
+        else
+            Debug.Log($"[Effect] Ascension fizzles — {player.name} still has cards.");
     }
 
 
@@ -156,16 +370,57 @@ public class EffectRunner : MonoBehaviour
         yield return new WaitUntil(() => done);
     }
 
+    // Discarding is a choice: the player losing the cards picks which ones go, one prompt per card.
+    // NetworkTargeting sends the prompt to THAT player's machine, not the caster's.
+    private IEnumerator DoDiscard(Player discarder, int count)
+    {
+        if (discarder == null || discarder.handManager == null) yield break;
+
+        for (int i = 0; i < count; i++)
+        {
+            if (discarder.handManager.cardsInHand.Count == 0) yield break;
+
+            bool done = false;
+            NetworkTargeting.Request(
+                chooser: discarder,
+                filter: t => TargetFilters.IsInHandOf(t, discarder),
+                prompt: $"Choose a card to discard ({count - i} left)",
+                onChosen: t => { discarder.SendToDiscard(t.gameObject); done = true; },
+                onCancel: () => done = true);
+
+            yield return new WaitUntil(() => done);
+        }
+    }
+
     private IEnumerator DoScry(EffectContext ctx, int count)
     {
         if (ctx.controller == null || ctx.controller.scryPanel == null || ctx.controller.deckManager == null) yield break;
 
         var panel = ctx.controller.scryPanel;
-        panel.Open(ctx.controller.deckManager, count);
+        panel.Open(ctx.controller, count);
         yield return new WaitUntil(() => !panel.IsOpen);
     }
 
-    // Strike: pick one of YOUR weapons in play and swing with it. Fizzles if you have no weapon.
+    /// A full equipment slot took another card — the owner chooses which one it replaces.
+    public void RequestZoneReplacement(Player owner, CardZone zone)
+        => StartCoroutine(ChooseReplacement(owner, zone));
+
+    private IEnumerator ChooseReplacement(Player owner, CardZone zone)
+    {
+        bool done = false;
+        NetworkTargeting.Request(
+            chooser: owner,
+            filter: t => TargetFilters.IsInZone(t, zone),
+            prompt: $"{zone.name} is full — choose the card this one replaces",
+            onChosen: t => { owner.SendToDiscard(t.gameObject); done = true; },
+            onCancel: () => done = true);
+
+        yield return new WaitUntil(() => done);
+    }
+
+    // Strike: pick one of YOUR weapons, untap it, and promise its next activation an extra effect.
+    // The strike card itself deals no damage — you still have to activate the weapon to swing.
+    // Fizzles if you have no weapon in play.
     private IEnumerator DoStrike(EffectContext ctx, CardAbility strike)
     {
         if (ctx.controller == null) yield break;
@@ -173,59 +428,18 @@ public class EffectRunner : MonoBehaviour
         yield return PickTarget(
             ctx,
             t => TargetFilters.IsOwnWeaponInPlay(t, ctx.controller),
-            "Choose one of your weapons to strike with",
-            weapon => ResolveStrike(ctx, strike, weapon));
+            "Choose one of your weapons to Strike with — it untaps and its next activation is stronger",
+            weapon => ChargeWeapon(ctx, strike, weapon));
     }
 
-    // Striking runs the weapon's OWN activated ability — for free, and without tapping it, which is
-    // the whole point of a strike card. So the weapon does everything it normally does (a Greatclub
-    // deals its 4), with the strike card's damage multiplier and bonus folded in on top.
-    private void ResolveStrike(EffectContext ctx, CardAbility strike, Targetable weapon)
+    private static void ChargeWeapon(EffectContext ctx, CardAbility strike, Targetable weapon)
     {
-        var weaponContext = ctx.controller.BuildContext(weapon.gameObject, weapon.Data);
-        bool struck = false;
+        weapon.GetComponent<CardTapState>()?.Untap();
+        StrikeCharge.Apply(weapon.gameObject, strike);
 
-        foreach (var ability in ActivatedAbilities(weapon.Data))
-        {
-            var scaled = ScaleForStrike(ability, strike);
-            if (scaled.effect == EffectKind.DealDamage)
-                Debug.Log($"[Strike] {ctx.controller.name} strikes with {weapon.Data?.cardName}: " +
-                          $"{ability.amount} × {Mathf.Max(1, strike.strikeDamageMultiplier)} " +
-                          $"{(strike.strikeBonusDamage >= 0 ? "+" : "-")} {Mathf.Abs(strike.strikeBonusDamage)} " +
-                          $"= {scaled.amount} damage");
-
-            ApplyInstant(scaled, weaponContext);
-            struck = true;
-        }
-
-        if (!struck)
-            Debug.Log($"[Strike] {weapon.Data?.cardName} has no activated ability to strike with.");
-
-        var owner = weapon.Owner;
-        if (strike.strikeDestroysWeapon && owner != null) owner.SendToDiscard(weapon.gameObject);
-    }
-
-    private static IEnumerable<CardAbility> ActivatedAbilities(Card weapon)
-    {
-        if (weapon == null || weapon.abilities == null) yield break;
-        foreach (var ability in weapon.abilities)
-            if (ability != null && ability.trigger == Trigger.Activated && ability.effect != EffectKind.None)
-                yield return ability;
-    }
-
-    // A copy of the weapon's ability with the strike card's scaling applied. Only damage scales —
-    // Hurl doubles it, Heavy Swing adds 2; everything else the weapon does happens as printed.
-    private static CardAbility ScaleForStrike(CardAbility weaponAbility, CardAbility strike)
-    {
-        if (weaponAbility.effect != EffectKind.DealDamage) return weaponAbility;
-
-        int multiplier = Mathf.Max(1, strike.strikeDamageMultiplier);
-        return new CardAbility
-        {
-            trigger = weaponAbility.trigger,
-            effect = weaponAbility.effect,
-            amount = Mathf.Max(0, weaponAbility.amount * multiplier + strike.strikeBonusDamage),
-            target = weaponAbility.target,
-        };
+        Debug.Log($"[Strike] {ctx.controller.name} strikes with {weapon.Data?.cardName}: untapped, " +
+                  $"next activation ×{Mathf.Max(1, strike.strikeDamageMultiplier)} " +
+                  $"{(strike.strikeBonusDamage >= 0 ? "+" : "-")} {Mathf.Abs(strike.strikeBonusDamage)}" +
+                  $"{(strike.strikeDestroysWeapon ? ", then destroyed" : "")}.");
     }
 }

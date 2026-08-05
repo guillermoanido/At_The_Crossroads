@@ -1,12 +1,22 @@
+using System.Collections.Generic;
 using UnityEngine;
 
+/// Per-card, per-turn state: whether the permanent is tapped, and which of its triggered abilities
+/// have already fired this turn (triggers are once per turn unless a card says otherwise).
 public class CardTapState : MonoBehaviour
 {
     [SerializeField] private float tappedZRotation = -90f;
 
     private Quaternion untappedRotation = Quaternion.identity;
+    private readonly HashSet<Trigger> firedThisTurn = new HashSet<Trigger>();
 
     public bool IsTapped { get; private set; }
+
+    /// Claims this card's once-per-turn allowance for `trigger`. False means it already fired.
+    public bool TryUseTrigger(Trigger trigger) => firedThisTurn.Add(trigger);
+
+    /// New turn, fresh allowance for every trigger on this card.
+    public void ResetTriggers() => firedThisTurn.Clear();
 
     public void Toggle()
     {
