@@ -69,6 +69,7 @@ public class Card : ScriptableObject
             case CostScope.StrikeCards: return GrantsStrike;
             case CostScope.Spells:      return IsSpell;
             case CostScope.Miracles:    return IsMiracle;
+            case CostScope.Skills:      return cardType == CardType.Skill;
             case CostScope.AllCards:    return true;
             default:                    return false;
         }

@@ -80,11 +80,15 @@ public class NetworkPlayerSeat : NetworkBehaviour
                 if (zone != null) zone.OnChanged += MarkBoardDirty;
             boardDirty = true;   // publish the initial (empty) board once
         }
+
+        // Tapping moves no card between zones, so it would never trigger a board push on its own.
+        CardTapState.TapStateChanged += OnCardTapped;
     }
 
     public override void OnStopServer()
     {
         serverSeats.Remove(this);
+        CardTapState.TapStateChanged -= OnCardTapped;
         if (BoundPlayer != null && BoundPlayer.handManager != null)
             BoundPlayer.handManager.OnHandChanged -= ServerPushHand;
         if (BoundPlayer != null)
@@ -114,6 +118,14 @@ public class NetworkPlayerSeat : NetworkBehaviour
     }
 
     private void MarkBoardDirty() => boardDirty = true;
+
+    // Only republish when the card that flipped belongs to this seat — otherwise every tap would
+    // rebuild both players' boards on every client.
+    private void OnCardTapped(CardTapState tapState)
+    {
+        if (tapState == null || BoundPlayer == null) return;
+        if (Targetable.OwnerOf(tapState.gameObject) == BoundPlayer) boardDirty = true;
+    }
 
     // Runs on every client (and the host) once this seat exists. Sets each machine's perspective
     // and seeds the parts that a SyncVar hook won't fire for on a fresh spawn.
@@ -336,6 +348,7 @@ public class NetworkPlayerSeat : NetworkBehaviour
         var counts = new List<int>();
         var ids = new List<int>();
         var instances = new List<int>();
+        var tapped = new List<bool>();
 
         foreach (var zone in BoundPlayer.SyncedZones())
         {
@@ -347,6 +360,7 @@ public class NetworkPlayerSeat : NetworkBehaviour
                     var d = go != null ? go.GetComponent<CardDisplay>()?.cardData : null;
                     ids.Add(db != null ? db.Id(d) : -1);
                     instances.Add(CardInstance.EnsureId(go));
+                    tapped.Add(go != null && go.GetComponent<CardTapState>() is CardTapState tap && tap.IsTapped);
                     n++;
                 }
             }
@@ -354,13 +368,13 @@ public class NetworkPlayerSeat : NetworkBehaviour
         }
 
         boardDirty = false;
-        RpcSyncBoard(counts.ToArray(), ids.ToArray(), instances.ToArray());
+        RpcSyncBoard(counts.ToArray(), ids.ToArray(), instances.ToArray(), tapped.ToArray());
     }
 
     // Rebuild this seat's board into the DISPLAY-mapped player's zones (local → bottom, opp → top).
     // The host is skipped — it holds the real, authoritative board objects.
     [ClientRpc]
-    private void RpcSyncBoard(int[] zoneCounts, int[] cardIds, int[] instanceIds)
+    private void RpcSyncBoard(int[] zoneCounts, int[] cardIds, int[] instanceIds, bool[] tappedFlags)
     {
         if (isServer) return;
 
@@ -386,6 +400,7 @@ public class NetworkPlayerSeat : NetworkBehaviour
             {
                 int cardId = cardIndex < cardIds.Length ? cardIds[cardIndex] : -1;
                 int instanceId = cardIndex < instanceIds.Length ? instanceIds[cardIndex] : CardInstance.None;
+                bool isTapped = cardIndex < tappedFlags.Length && tappedFlags[cardIndex];
                 cardIndex++;
 
                 var card = db != null ? db.FromId(cardId) : null;
@@ -398,6 +413,9 @@ public class NetworkPlayerSeat : NetworkBehaviour
                 CardInstance.Bind(go, instanceId);
                 ConfigureMirroredCard(go, zone);
                 zone.AddCard(go);
+
+                // After AddCard: it resets localRotation, which would undo the tapped angle.
+                if (isTapped) go.GetComponent<CardTapState>()?.Tap();
             }
         }
     }

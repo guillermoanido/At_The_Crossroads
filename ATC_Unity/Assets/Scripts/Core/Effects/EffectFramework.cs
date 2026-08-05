@@ -133,6 +133,7 @@ public enum CostScope
     Spells,
     Miracles,
     AllCards,
+    Skills,
 }
 
 /// Where an ability's magnitude comes from. `amount` is always added on top, so "X + 1" is
