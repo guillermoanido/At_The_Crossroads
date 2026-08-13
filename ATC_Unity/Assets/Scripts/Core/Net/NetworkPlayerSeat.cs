@@ -163,6 +163,9 @@ public class NetworkPlayerSeat : NetworkBehaviour
         // the deal happened before this object finished spawning.
         var hand = HandFor(seatIndex);
         if (hand != null) hand.SetFaceUpMode(true);
+
+        // Hand the server our deck before asking for cards — the opening hand is dealt from it.
+        SubmitLocalDeck();
         CmdRequestHandResync();
 
         // Re-render opponents into the top slot: their initial OnStartClient render happened
@@ -202,6 +205,77 @@ public class NetworkPlayerSeat : NetworkBehaviour
     // opening hand was dealt before this seat existed on that client.
     [Command]
     private void CmdRequestHandResync() => ServerPushHand();
+
+    /// True once this seat has told the server what it is playing with. The match waits for both.
+    public bool HasSubmittedDeck { get; private set; }
+
+    // Each player brings their own deck, and only the host runs the game — so the client has to
+    // hand its deck over. Cards travel as CardDatabase ids, the same stable numbering hands and
+    // boards already use. Attributes come along so the server can check the deck is legal.
+    [Command]
+    private void CmdSubmitDeck(int[] cardIds, int strength, int intellect, int wisdom, int dexterity)
+    {
+        var db = CardDatabase.Instance;
+        var cards = new List<Card>();
+
+        if (cardIds != null && db != null)
+        {
+            foreach (int id in cardIds)
+            {
+                var card = db.FromId(id);
+                if (card != null) cards.Add(card);
+            }
+        }
+
+        WarnAboutIllegalCards(cards, strength, intellect, wisdom, dexterity);
+
+        if (BoundPlayer != null && BoundPlayer.deckManager != null)
+            BoundPlayer.deckManager.LoadRuntimeDeck(cards, $"seat {seatIndex}'s deck");
+
+        HasSubmittedDeck = true;
+        Debug.Log($"[Net] Seat {seatIndex} submitted a {cards.Count}-card deck.");
+
+        // The last deck to arrive is usually what the match was waiting on.
+        (NetworkManager.singleton as ATCNetworkManager)?.TryStartMatch();
+    }
+
+    // The host is authoritative about legality, but a mismatched deck is a setup mistake rather
+    // than an attack — log it loudly and play on rather than dropping the player.
+    [Server]
+    private void WarnAboutIllegalCards(List<Card> cards, int strength, int intellect, int wisdom, int dexterity)
+    {
+        if (cards.Count < DeckRules.MinDeckSize)
+            Debug.LogWarning($"[Net] Seat {seatIndex} sent {cards.Count} cards; minimum is {DeckRules.MinDeckSize}.");
+
+        foreach (var card in cards)
+        {
+            if (strength >= card.strRequired && intellect >= card.intRequired
+                && wisdom >= card.wisRequired && dexterity >= card.dexRequired) continue;
+
+            Debug.LogWarning($"[Net] Seat {seatIndex}'s deck contains '{card.cardName}', which its " +
+                             $"attributes don't meet.");
+        }
+    }
+
+    // Runs on the owning client as it joins: send whatever deck the menu picked. Always sends,
+    // even with nothing chosen (scene opened directly) — an empty deck is the signal to keep the
+    // scene's own cards, and it lets the server tell "no deck wanted" from "deck still in flight".
+    private void SubmitLocalDeck()
+    {
+        var deck = MatchSettings.SelectedDeck;
+        var db = CardDatabase.Instance;
+
+        if (deck == null || db == null)
+        {
+            CmdSubmitDeck(new int[0], 0, 0, 0, 0);
+            return;
+        }
+
+        var ids = new int[deck.Count];
+        for (int i = 0; i < ids.Length; i++) ids[i] = db.Id(deck.cards[i]);
+
+        CmdSubmitDeck(ids, deck.strength, deck.intellect, deck.wisdom, deck.dexterity);
+    }
 
     // Play a card from THIS seat's hand, identified by its stable CardDatabase id — NOT a positional
     // index, because the client's hand is an async mirror that may have shifted (a draw, an

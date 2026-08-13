@@ -29,6 +29,21 @@ public class DeckManager : MonoBehaviour
         allCards = new List<Card>(deck.cards);
     }
 
+    /// Replace the deck with one assembled at runtime — the list a player brought from the menu,
+    /// or the one a client sent over the wire. Ignored if empty, so a failed transfer leaves the
+    /// scene's fallback deck in place rather than starting a match with no cards.
+    public void LoadRuntimeDeck(IList<Card> cards, string sourceName)
+    {
+        if (cards == null || cards.Count == 0)
+        {
+            Debug.LogWarning($"[Deck] {name}: '{sourceName}' had no cards — keeping the existing deck.");
+            return;
+        }
+
+        allCards = new List<Card>(cards);
+        Debug.Log($"[Deck] {name} loaded '{sourceName}' ({allCards.Count} cards).");
+    }
+
     public void DealStartingHand(HandManager hand, int cardCount)
     {
         for (int i = 0; i < cardCount; i++) DrawCard(hand);

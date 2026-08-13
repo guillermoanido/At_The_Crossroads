@@ -33,6 +33,26 @@ public class ATCNetworkManager : NetworkManager
         // accidentally hosts. Online mode shows it. (No GameManager yet = treat as online.)
         var hud = GetComponent<NetworkManagerHUD>();
         if (hud != null) hud.enabled = Online;
+
+        ActOnMenuChoice();
+    }
+
+    // The menu decided host-or-join before loading this scene. Consuming the choice means a manual
+    // scene reload won't silently reconnect, and opening the scene directly still shows the HUD.
+    private void ActOnMenuChoice()
+    {
+        switch (MatchSettings.ConsumePendingMode())
+        {
+            case MatchSettings.Mode.Host:
+                Debug.Log("[Net] Menu asked to host.");
+                StartHost();
+                break;
+            case MatchSettings.Mode.Join:
+                networkAddress = MatchSettings.Address;
+                Debug.Log($"[Net] Menu asked to join {networkAddress}.");
+                StartClient();
+                break;
+        }
     }
 
     // Two PCs on one LAN need exactly one thing that isn't on screen anywhere: the host's address.
@@ -150,15 +170,30 @@ public class ATCNetworkManager : NetworkManager
         CardInstance.ResetIds();   // a new session numbers its cards from scratch
     }
 
-    private void TryStartMatch()
+    /// Starts the match once both seats are filled AND both have handed over their decks. Called
+    /// again as each deck arrives, since the last one to land is usually what it was waiting for.
+    public void TryStartMatch()
     {
         if (matchStarted) return;   // never restart an in-progress match (e.g. on a rejoin)
         if (numPlayers < 2) return;
+        if (!AllSeatsHaveDecks()) return;
 
         matchStarted = true;        // set before StartGame so re-entrancy can't double-fire
-        Debug.Log("[Net] Both seats filled — starting the match on the server.");
+        Debug.Log("[Net] Both seats filled and both decks in — starting the match on the server.");
         if (GameManager.Instance != null) GameManager.Instance.StartGame();
         else Debug.LogWarning("[Net] No GameManager found in the scene to start.");
+    }
+
+    // Every client submits as it spawns — an empty submission means "I have no deck, use the
+    // scene's", so waiting on all of them is safe even when nobody came through the menu.
+    private static bool AllSeatsHaveDecks()
+    {
+        foreach (var connection in NetworkServer.connections.Values)
+        {
+            var seat = connection?.identity != null ? connection.identity.GetComponent<NetworkPlayerSeat>() : null;
+            if (seat != null && !seat.HasSubmittedDeck) return false;
+        }
+        return true;
     }
 
     public override void OnStopServer()
