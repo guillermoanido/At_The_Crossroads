@@ -163,7 +163,12 @@ public static class MainMenuSetup
 
         AddButton(panel, "<", new Vector2(-220f, 90f), controller.PreviousDeck, 60f);
         AddButton(panel, ">", new Vector2(220f, 90f), controller.NextDeck, 60f);
-        AddButton(panel, "BUILD A DECK", new Vector2(0f, -30f), controller.OpenDeckBuilder, 240f);
+
+        // Browsing already selects, so this button exists to say so plainly and get out of the way.
+        var use = AddButton(panel, "USE THIS DECK", new Vector2(0f, -10f), controller.ConfirmDeck, 260f);
+        use.GetComponent<Image>().color = new Color(0.24f, 0.42f, 0.26f);
+
+        AddButton(panel, "BUILD A DECK", new Vector2(0f, -70f), controller.OpenDeckBuilder, 260f);
         AddCloseButton(panel, controller);
     }
 

@@ -39,6 +39,11 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
 
     public Player Owner => owner;
     public List<GameObject> Cards { get; } = new List<GameObject>();
+
+    /// Printed capacity. 0 = unlimited. Cards in play can raise it, so ask Player.IsZoneFull
+    /// rather than reading this directly.
+    public int MaxSlots => maxSlots;
+
     public bool IsFull => maxSlots > 0 && Cards.Count >= maxSlots;
 
     /// Raised after the zone's contents change (add/remove). The networking layer subscribes on the

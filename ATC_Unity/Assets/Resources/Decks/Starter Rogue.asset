@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c2f7c2cf5ce9244fa25f58cd26fcf38, type: 3}
+  m_Name: Starter Rogue
+  m_EditorClassIdentifier: Assembly-CSharp::DeckDefinition
+  deckName: Quick Hands
+  strength: 0
+  intellect: 0
+  wisdom: 0
+  dexterity: 17
+  cards:
+  - {fileID: 11400000, guid: 54ee43cdc82c4464790ca0a09da0de00, type: 2}
+  - {fileID: 11400000, guid: d6be86bbd7f2b9d4a994038c265a294a, type: 2}
+  - {fileID: 11400000, guid: 4e506f1afd7ec4e41a3f68a62c45dcc3, type: 2}
+  - {fileID: 11400000, guid: 890e2885fec761d4689ee28b91e1539f, type: 2}
+  - {fileID: 11400000, guid: 460df8ba477458c47bee3754f43b96e1, type: 2}
+  - {fileID: 11400000, guid: 731eb72f424878f41b2275610fe2aaad, type: 2}
+  - {fileID: 11400000, guid: ef1315ccb1e812b4b85d33e29854ca2d, type: 2}
+  - {fileID: 11400000, guid: 8167d7f477a5f964b810dbf388c31812, type: 2}
+  - {fileID: 11400000, guid: 9a0acb4e39ae11440a61d5a86f878754, type: 2}
+  - {fileID: 11400000, guid: 069a5351feda4a240a61065660be05f8, type: 2}
+  - {fileID: 11400000, guid: bc93e8145978747489e25d14eb164e17, type: 2}
+  - {fileID: 11400000, guid: f6d4a660678240046b7472395e4fe623, type: 2}
+  - {fileID: 11400000, guid: dd1478782d6c3fb4ca20a77a7f03b435, type: 2}
+  - {fileID: 11400000, guid: 77f1a28684870fc4bb2aa87a09f4b0be, type: 2}
+  - {fileID: 11400000, guid: f9c5a0c69e58ee74881ad9fd7fe4a56a, type: 2}
+  - {fileID: 11400000, guid: a326e954dca10ea4992c4dc2c3803ad8, type: 2}
+  - {fileID: 11400000, guid: 685d9152be25555448931fd488cb8d27, type: 2}
+  - {fileID: 11400000, guid: 2e2efbdb38d95ce4589e4fa583dfa515, type: 2}
+  - {fileID: 11400000, guid: 8872811f5b370ee44bb14e01d7995f87, type: 2}
+  - {fileID: 11400000, guid: 329d71094ad7f5846af57d3431324031, type: 2}
+  - {fileID: 11400000, guid: 54ee43cdc82c4464790ca0a09da0de00, type: 2}
+  - {fileID: 11400000, guid: d6be86bbd7f2b9d4a994038c265a294a, type: 2}
+  - {fileID: 11400000, guid: 4e506f1afd7ec4e41a3f68a62c45dcc3, type: 2}
+  - {fileID: 11400000, guid: 890e2885fec761d4689ee28b91e1539f, type: 2}
+  - {fileID: 11400000, guid: 460df8ba477458c47bee3754f43b96e1, type: 2}
+  - {fileID: 11400000, guid: 731eb72f424878f41b2275610fe2aaad, type: 2}
+  - {fileID: 11400000, guid: ef1315ccb1e812b4b85d33e29854ca2d, type: 2}
+  - {fileID: 11400000, guid: 8167d7f477a5f964b810dbf388c31812, type: 2}
+  - {fileID: 11400000, guid: 9a0acb4e39ae11440a61d5a86f878754, type: 2}
+  - {fileID: 11400000, guid: 069a5351feda4a240a61065660be05f8, type: 2}
+  - {fileID: 11400000, guid: bc93e8145978747489e25d14eb164e17, type: 2}
+  - {fileID: 11400000, guid: f6d4a660678240046b7472395e4fe623, type: 2}
+  - {fileID: 11400000, guid: dd1478782d6c3fb4ca20a77a7f03b435, type: 2}
+  - {fileID: 11400000, guid: 77f1a28684870fc4bb2aa87a09f4b0be, type: 2}
+  - {fileID: 11400000, guid: f9c5a0c69e58ee74881ad9fd7fe4a56a, type: 2}
+  - {fileID: 11400000, guid: a326e954dca10ea4992c4dc2c3803ad8, type: 2}
+  - {fileID: 11400000, guid: 685d9152be25555448931fd488cb8d27, type: 2}
+  - {fileID: 11400000, guid: 2e2efbdb38d95ce4589e4fa583dfa515, type: 2}
+  - {fileID: 11400000, guid: 8872811f5b370ee44bb14e01d7995f87, type: 2}
+  - {fileID: 11400000, guid: 329d71094ad7f5846af57d3431324031, type: 2}

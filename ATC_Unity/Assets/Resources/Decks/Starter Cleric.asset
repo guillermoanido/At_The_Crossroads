@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c2f7c2cf5ce9244fa25f58cd26fcf38, type: 3}
+  m_Name: Starter Cleric
+  m_EditorClassIdentifier: Assembly-CSharp::DeckDefinition
+  deckName: The Faithful
+  strength: 0
+  intellect: 0
+  wisdom: 17
+  dexterity: 0
+  cards:
+  - {fileID: 11400000, guid: 706ebba171e63044f97d58d8801a0b90, type: 2}
+  - {fileID: 11400000, guid: 153126fe85e77f44f9952a8b1d1fe22f, type: 2}
+  - {fileID: 11400000, guid: 5711807d211bf2649b541bb91cc3037d, type: 2}
+  - {fileID: 11400000, guid: 6f30834f45d7ecc4eadba828008e7308, type: 2}
+  - {fileID: 11400000, guid: 63aaf472ab6c8524d8bc7d1cf3bc0546, type: 2}
+  - {fileID: 11400000, guid: 9bc0d396504112b4785f9d562bf1bcaf, type: 2}
+  - {fileID: 11400000, guid: 772ebb99cbb38a84abbe802e1b0c8c87, type: 2}
+  - {fileID: 11400000, guid: 5ffb337d24d28ee48b0a0b76c7783c56, type: 2}
+  - {fileID: 11400000, guid: b86f3f45d0c290742a3aef38d3bfda72, type: 2}
+  - {fileID: 11400000, guid: 3a80f4870a353bc4ab327f6e1b1e370b, type: 2}
+  - {fileID: 11400000, guid: d058830b88afb984b83d46c198c405fe, type: 2}
+  - {fileID: 11400000, guid: cfa502ad66371a742a8928e849b024b4, type: 2}
+  - {fileID: 11400000, guid: 571f83fff5340b44a88b6e4626b678bf, type: 2}
+  - {fileID: 11400000, guid: c64a64a15958db448934b36806d06eb1, type: 2}
+  - {fileID: 11400000, guid: 4691160cf8363734fb5bcb463d63472c, type: 2}
+  - {fileID: 11400000, guid: 74f105bff9d044349bfff96b982aec66, type: 2}
+  - {fileID: 11400000, guid: bb71253d5ad493a478e5c0ebf4bf6892, type: 2}
+  - {fileID: 11400000, guid: 0d36071fcbec3a147a1d47ff1a4ec332, type: 2}
+  - {fileID: 11400000, guid: ee70dd2c3c55ba34d85008c224cc1cf1, type: 2}
+  - {fileID: 11400000, guid: b9c6d692649477f43bd9295fe0a7cc74, type: 2}
+  - {fileID: 11400000, guid: 706ebba171e63044f97d58d8801a0b90, type: 2}
+  - {fileID: 11400000, guid: 153126fe85e77f44f9952a8b1d1fe22f, type: 2}
+  - {fileID: 11400000, guid: 5711807d211bf2649b541bb91cc3037d, type: 2}
+  - {fileID: 11400000, guid: 6f30834f45d7ecc4eadba828008e7308, type: 2}
+  - {fileID: 11400000, guid: 63aaf472ab6c8524d8bc7d1cf3bc0546, type: 2}
+  - {fileID: 11400000, guid: 9bc0d396504112b4785f9d562bf1bcaf, type: 2}
+  - {fileID: 11400000, guid: 772ebb99cbb38a84abbe802e1b0c8c87, type: 2}
+  - {fileID: 11400000, guid: 5ffb337d24d28ee48b0a0b76c7783c56, type: 2}
+  - {fileID: 11400000, guid: b86f3f45d0c290742a3aef38d3bfda72, type: 2}
+  - {fileID: 11400000, guid: 3a80f4870a353bc4ab327f6e1b1e370b, type: 2}
+  - {fileID: 11400000, guid: d058830b88afb984b83d46c198c405fe, type: 2}
+  - {fileID: 11400000, guid: cfa502ad66371a742a8928e849b024b4, type: 2}
+  - {fileID: 11400000, guid: 571f83fff5340b44a88b6e4626b678bf, type: 2}
+  - {fileID: 11400000, guid: c64a64a15958db448934b36806d06eb1, type: 2}
+  - {fileID: 11400000, guid: 4691160cf8363734fb5bcb463d63472c, type: 2}
+  - {fileID: 11400000, guid: 74f105bff9d044349bfff96b982aec66, type: 2}
+  - {fileID: 11400000, guid: bb71253d5ad493a478e5c0ebf4bf6892, type: 2}
+  - {fileID: 11400000, guid: 0d36071fcbec3a147a1d47ff1a4ec332, type: 2}
+  - {fileID: 11400000, guid: ee70dd2c3c55ba34d85008c224cc1cf1, type: 2}
+  - {fileID: 11400000, guid: b9c6d692649477f43bd9295fe0a7cc74, type: 2}

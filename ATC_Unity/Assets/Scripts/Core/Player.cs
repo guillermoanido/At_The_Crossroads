@@ -79,8 +79,19 @@ public class Player : MonoBehaviour
     // Bless: stamina handed over at this player's next upkeep.
     private int queuedUpkeepStamina;
 
+    // Evasive Step: the next card damage aimed at this player is ignored outright.
+    private bool avoidNextDirectDamage;
+
+    // Flow State: the controller's next card ignores its speed restriction.
+    private bool nextCardAtReflexSpeed;
+
+    public int ReflexCardsPlayedThisTurn { get; private set; }
+
     public bool ReflexLocked => reflexLocked;
     public bool CanDraw => !freeCostsNoDraw;
+
+    public void AvoidNextDirectDamage() => avoidNextDirectDamage = true;
+    public void GrantNextCardReflexSpeed() => nextCardAtReflexSpeed = true;
 
     public void AddNextCardSurcharge(int amount) => nextCardSurcharge += Mathf.Max(0, amount);
     public void LockReflex() => reflexLocked = true;
@@ -94,8 +105,11 @@ public class Player : MonoBehaviour
         nextCardSurcharge = 0;
         reflexLocked = false;
         freeCostsNoDraw = false;
+        avoidNextDirectDamage = false;
+        nextCardAtReflexSpeed = false;
         SpellsPlayedThisTurn = 0;
         CardsPlayedThisTurn = 0;
+        ReflexCardsPlayedThisTurn = 0;
     }
 
     #endregion
@@ -196,10 +210,89 @@ public class Player : MonoBehaviour
         DivineShield = divineShield;
     }
 
+    /// Positive deltas are a Block GAIN and are adjusted by any static modifier in play (Defensive
+    /// Stance adds, Broken Stance subtracts). Losing Block — spending it, or the end-of-turn wipe —
+    /// is never modified.
     public void AdjustDefense(int delta)
     {
+        if (delta > 0) delta = Mathf.Max(0, delta + StaticAmount(EffectKind.ModifyBlockGain));
+
         int next = Defense + delta;
         Defense = maxDefense > 0 ? Mathf.Clamp(next, 0, maxDefense) : Mathf.Max(0, next);
+    }
+
+    // Sum of a Static effect across both boards — the controller's own cards plus anything the
+    // opponent has aimed at them (a Condition like Broken Stance sits on the victim's side, so it
+    // is found by the Controller pass).
+    private int StaticAmount(EffectKind effect)
+    {
+        int total = StaticsOnBoard(this, effect, EffectTarget.Controller);
+        var other = Opponent;
+        if (other != null) total += StaticsOnBoard(other, effect, EffectTarget.Opponent);
+        return total;
+    }
+
+    private static int StaticsOnBoard(Player source, EffectKind effect, EffectTarget aimedAt)
+    {
+        int total = 0;
+        foreach (var zone in source.BoardZones())
+        {
+            if (zone == null) continue;
+            foreach (var cardGO in zone.Cards)
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                if (data == null || data.abilities == null) continue;
+
+                foreach (var ability in data.abilities)
+                    if (ability != null && ability.trigger == Trigger.Static
+                        && ability.effect == effect && ability.target == aimedAt)
+                        total += ability.amount;
+            }
+        }
+        return total;
+    }
+
+    /// How many cards fit in `zone`, counting any "you may equip one more" effects in play.
+    public bool IsZoneFull(CardZone zone)
+    {
+        if (zone == null || zone.MaxSlots <= 0) return false;
+        return zone.Cards.Count >= zone.MaxSlots + ExtraSlotsFor(zone.Kind);
+    }
+
+    private int ExtraSlotsFor(CardZone.ZoneKind kind)
+    {
+        int total = 0;
+        foreach (var zoneOwned in BoardZones())
+        {
+            if (zoneOwned == null) continue;
+            foreach (var cardGO in zoneOwned.Cards)
+            {
+                var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+                if (data == null || data.abilities == null) continue;
+
+                foreach (var ability in data.abilities)
+                    if (ability != null && ability.trigger == Trigger.Static
+                        && ability.effect == EffectKind.ExtraZoneSlots
+                        && ZoneKindFor(ability.slotType) == kind)
+                        total += ability.amount;
+            }
+        }
+        return total;
+    }
+
+    private static CardZone.ZoneKind ZoneKindFor(Card.CardType type)
+    {
+        switch (type)
+        {
+            case Card.CardType.Weapon:    return CardZone.ZoneKind.Weapon;
+            case Card.CardType.Armour:    return CardZone.ZoneKind.Armour;
+            case Card.CardType.Shield:    return CardZone.ZoneKind.Shield;
+            case Card.CardType.Accesory:  return CardZone.ZoneKind.Accessory;
+            case Card.CardType.Equipment: return CardZone.ZoneKind.Equipment;
+            case Card.CardType.Talent:    return CardZone.ZoneKind.Talent;
+            case Card.CardType.Aura:      return CardZone.ZoneKind.Aura;
+            default:                      return CardZone.ZoneKind.Other;
+        }
     }
 
     public bool SpendStamina(int amount)
@@ -220,6 +313,15 @@ public class Player : MonoBehaviour
             sourceCardGO = sourceCardGO,
             sourceCardData = sourceCardData
         };
+
+        // Evasive Step soaks one whole card's worth of damage — status damage has no source card
+        // and slips past it.
+        if (sourceCardData != null && avoidNextDirectDamage)
+        {
+            avoidNextDirectDamage = false;
+            Debug.Log($"[Damage] {name} avoids {amount} from {sourceCardData.cardName}.");
+            return;
+        }
 
         if (sourceCardData != null) tookDirectDamageThisTurn = true;
 
@@ -488,7 +590,7 @@ public class Player : MonoBehaviour
         }
 
         var zone = ZoneFor(cardData.cardType);
-        bool zoneWasFull = zone.IsFull;
+        bool zoneWasFull = IsZoneFull(zone);
         int cost = StaminaCostOf(cardData);
         int staminaBefore = Stamina;
 
@@ -538,6 +640,9 @@ public class Player : MonoBehaviour
     private void RegisterCardPlayed(Card cardData)
     {
         CardsPlayedThisTurn++;
+        nextCardAtReflexSpeed = false;   // Flow State covers one card only
+        if (cardData.speedType == Card.SpeedType.Reflex) ReflexCardsPlayedThisTurn++;
+
         if (cardData.IsSpell)
         {
             SpellsPlayedThisTurn++;
@@ -742,6 +847,9 @@ public class Player : MonoBehaviour
         }
 
         if (speed != Card.SpeedType.Channel) return true;
+
+        // Keen Instinct (always on) and Flow State (one card) both let Channel act like Reflex.
+        if (nextCardAtReflexSpeed || StaticAmount(EffectKind.AllowChannelAtReflexSpeed) > 0) return true;
 
         if (!GameManager.Instance.IsActivePlayer(this))
         {

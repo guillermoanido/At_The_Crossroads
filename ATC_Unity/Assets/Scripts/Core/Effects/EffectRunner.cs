@@ -165,7 +165,20 @@ public class EffectRunner : MonoBehaviour
                 bonus = ctx.controller != null ? ctx.controller.SpellsPlayedThisTurn : 0;
                 break;
         }
+
+        if (ConditionHolds(a.bonusCondition, ctx)) bonus += a.conditionalBonus;
         return a.amount + bonus;
+    }
+
+    private static bool ConditionHolds(AmountCondition condition, EffectContext ctx)
+    {
+        switch (condition)
+        {
+            case AmountCondition.IfYouPlayedAReflexCardThisTurn:
+                return ctx.controller != null && ctx.controller.ReflexCardsPlayedThisTurn > 0;
+            default:
+                return false;
+        }
     }
 
     private static int CountSpellsInDiscard(Player player)
@@ -305,6 +318,13 @@ public class EffectRunner : MonoBehaviour
                 break;
             case EffectKind.GainStaminaNextUpkeep:
                 ctx.controller?.QueueUpkeepStamina(amount);
+                break;
+
+            case EffectKind.AvoidNextDirectDamage:
+                ctx.controller?.AvoidNextDirectDamage();
+                break;
+            case EffectKind.NextCardAtReflexSpeed:
+                ctx.controller?.GrantNextCardReflexSpeed();
                 break;
 
             case EffectKind.DestroySelf:

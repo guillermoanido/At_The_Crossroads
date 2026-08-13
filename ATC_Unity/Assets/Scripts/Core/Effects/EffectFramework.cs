@@ -117,6 +117,21 @@ public enum EffectKind
 
     DestroySelf,
     WinIfDeckAndHandEmpty,
+
+    // Static: every point of Block this player gains is adjusted by `amount` (negative reduces it).
+    ModifyBlockGain,
+
+    // Static: this player may play Channel cards at any time, as if they were Reflex.
+    AllowChannelAtReflexSpeed,
+
+    // Static: `amount` more cards fit in the zone matching `slotType`.
+    ExtraZoneSlots,
+
+    // Turn-scoped: the next card damage from a card is simply ignored.
+    AvoidNextDirectDamage,
+
+    // Turn-scoped: the controller's next card ignores its speed restriction.
+    NextCardAtReflexSpeed,
 }
 
 public enum EffectTarget
@@ -145,6 +160,14 @@ public enum AmountSource
     SpellsYouPlayedThisTurn,
 }
 
+/// An extra chunk of magnitude that only counts when something is true — "deal 1 damage, +2 if you
+/// played a Reflex card this turn".
+public enum AmountCondition
+{
+    Always,
+    IfYouPlayedAReflexCardThisTurn,
+}
+
 [Serializable]
 public class CardAbility
 {
@@ -163,9 +186,19 @@ public class CardAbility
     [Tooltip("Counts something in play and adds it to Amount, for 'X + 1' abilities. Fixed = just Amount.")]
     public AmountSource amountSource = AmountSource.Fixed;
 
+    [Tooltip("Extra magnitude that only applies when this condition holds.")]
+    public AmountCondition bonusCondition = AmountCondition.Always;
+
+    [Tooltip("How much the condition adds when it holds.")]
+    public int conditionalBonus = 0;
+
     [Header("Cost modifiers only (effect = Reduce/IncreaseCost)")]
     [Tooltip("Which cards the modifier applies to. Target decides WHOSE cards: Controller = yours, Opponent = theirs.")]
     public CostScope costScope = CostScope.StrikeCards;
+
+    [Header("Slot modifiers only (effect = ExtraZoneSlots)")]
+    [Tooltip("Which kind of card gets more room in play.")]
+    public Card.CardType slotType = Card.CardType.Weapon;
 
     [Header("Activated abilities only (trigger = Activated)")]
     [Tooltip("Speed the ability can be used at. Channel = your main phase only; Reflex = any time.")]

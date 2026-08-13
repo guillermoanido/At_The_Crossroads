@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c2f7c2cf5ce9244fa25f58cd26fcf38, type: 3}
+  m_Name: Starter Warrior
+  m_EditorClassIdentifier: Assembly-CSharp::DeckDefinition
+  deckName: The Bulwark
+  strength: 17
+  intellect: 0
+  wisdom: 0
+  dexterity: 0
+  cards:
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0c0e580d97281a3449ef4f7c4b9e9680, type: 2}
+  - {fileID: 11400000, guid: 70b3e6bb9bbee1e4a9aa97c31c33cba8, type: 2}
+  - {fileID: 11400000, guid: db05e1ae304c22345976e3396adcb161, type: 2}
+  - {fileID: 11400000, guid: 8e15f2b485f4fa24796c973d4617f7d6, type: 2}
+  - {fileID: 11400000, guid: f87d065f5be303e4ab5b6d5ce403037a, type: 2}
+  - {fileID: 11400000, guid: 696b968effa03f64893e5882e4d84464, type: 2}
+  - {fileID: 11400000, guid: e9cde0c24471a6241a29c3f5992b39dc, type: 2}
+  - {fileID: 11400000, guid: 2870dd62a732cb64f91422f74c279b76, type: 2}
+  - {fileID: 11400000, guid: fa6407fd0b2207e4f89901006fe511f3, type: 2}
+  - {fileID: 11400000, guid: 17d95fb04eec8124e9056b65e728f15d, type: 2}
+  - {fileID: 11400000, guid: 3d955019c7c3e404290d9eacd184f720, type: 2}
+  - {fileID: 11400000, guid: c2c2d14c6f9b96941aaf8c1b8a765930, type: 2}
+  - {fileID: 11400000, guid: 5e836ddc48d6033429f13039be764554, type: 2}
+  - {fileID: 11400000, guid: 6c331e35a62d3e04b9f846a665d576f7, type: 2}
+  - {fileID: 11400000, guid: c4b9abdf6a9605743848a1ef3b29dfdc, type: 2}
+  - {fileID: 11400000, guid: 3b900eb5fe2a53d45aa6e3e52a078acd, type: 2}
+  - {fileID: 11400000, guid: 86d8bb3c0af7ad9449be94a7b4789faa, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0c0e580d97281a3449ef4f7c4b9e9680, type: 2}
+  - {fileID: 11400000, guid: 70b3e6bb9bbee1e4a9aa97c31c33cba8, type: 2}
+  - {fileID: 11400000, guid: db05e1ae304c22345976e3396adcb161, type: 2}
+  - {fileID: 11400000, guid: 8e15f2b485f4fa24796c973d4617f7d6, type: 2}
+  - {fileID: 11400000, guid: f87d065f5be303e4ab5b6d5ce403037a, type: 2}
+  - {fileID: 11400000, guid: 696b968effa03f64893e5882e4d84464, type: 2}
+  - {fileID: 11400000, guid: e9cde0c24471a6241a29c3f5992b39dc, type: 2}
+  - {fileID: 11400000, guid: 2870dd62a732cb64f91422f74c279b76, type: 2}
+  - {fileID: 11400000, guid: fa6407fd0b2207e4f89901006fe511f3, type: 2}
+  - {fileID: 11400000, guid: 17d95fb04eec8124e9056b65e728f15d, type: 2}
+  - {fileID: 11400000, guid: 3d955019c7c3e404290d9eacd184f720, type: 2}
+  - {fileID: 11400000, guid: c2c2d14c6f9b96941aaf8c1b8a765930, type: 2}
+  - {fileID: 11400000, guid: 5e836ddc48d6033429f13039be764554, type: 2}
+  - {fileID: 11400000, guid: 6c331e35a62d3e04b9f846a665d576f7, type: 2}
+  - {fileID: 11400000, guid: c4b9abdf6a9605743848a1ef3b29dfdc, type: 2}
+  - {fileID: 11400000, guid: 3b900eb5fe2a53d45aa6e3e52a078acd, type: 2}
+  - {fileID: 11400000, guid: 86d8bb3c0af7ad9449be94a7b4789faa, type: 2}
+  - {fileID: 11400000, guid: 0d45a97418948144ba6798db75b7da98, type: 2}
+  - {fileID: 11400000, guid: 0c0e580d97281a3449ef4f7c4b9e9680, type: 2}
+  - {fileID: 11400000, guid: 70b3e6bb9bbee1e4a9aa97c31c33cba8, type: 2}
+  - {fileID: 11400000, guid: db05e1ae304c22345976e3396adcb161, type: 2}

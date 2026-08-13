@@ -31,6 +31,9 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private TMP_Text deckNameLabel;
     [SerializeField] private TMP_Text deckSummaryLabel;
 
+    [Tooltip("Always-visible reminder of which deck is going into the match.")]
+    [SerializeField] private TMP_Text selectedDeckBanner;
+
     [Header("Audio")]
     [SerializeField] private Slider masterSlider;
     [SerializeField] private Slider musicSlider;
@@ -120,11 +123,38 @@ public class MainMenuController : MonoBehaviour
         SceneManager.LoadScene(deckBuilderScene);
     }
 
+    /// "Use this deck" — the deck is already selected as you browse, so this exists to make that
+    /// obvious: it confirms the choice out loud and closes the panel.
+    public void ConfirmDeck()
+    {
+        var deck = MatchSettings.SelectedDeck;
+        if (deck == null)
+        {
+            Debug.LogWarning("[Menu] No deck to select — run ATC ▸ Generate Starter Decks.");
+            return;
+        }
+
+        MatchSettings.SelectDeck(deck);
+        RefreshDeckLabels();
+        CloseAllPanels();
+        Debug.Log($"[Menu] Playing with '{DeckLibrary.DisplayName(deck)}'.");
+    }
+
     private void RefreshDeckLabels()
     {
         var deck = MatchSettings.SelectedDeck;
+        bool legal = deck != null && deck.Count >= DeckRules.MinDeckSize;
+
         if (deckNameLabel != null) deckNameLabel.text = DeckLibrary.DisplayName(deck);
         if (deckSummaryLabel != null) deckSummaryLabel.text = DeckLibrary.Summary(deck);
+
+        if (selectedDeckBanner != null)
+        {
+            selectedDeckBanner.text = deck == null
+                ? "No deck selected — open Create Deck"
+                : $"Deck: {DeckLibrary.DisplayName(deck)}{(legal ? "" : "  (not legal yet)")}";
+            selectedDeckBanner.color = legal ? new Color(0.75f, 0.95f, 0.75f) : new Color(1f, 0.7f, 0.45f);
+        }
     }
 
     #endregion
