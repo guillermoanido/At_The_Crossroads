@@ -111,7 +111,7 @@ public static class MainMenuSetup
         public GameObject Settings, Join, Deck;
         public Slider Master, Music, Sfx;
         public TMP_InputField Address;
-        public TMP_Text DeckName, DeckSummary;
+        public TMP_Text DeckName, DeckSummary, Banner;
     }
 
     private static Panels BuildPanels(Transform canvas, MainMenuController controller)
@@ -121,6 +121,12 @@ public static class MainMenuSetup
 
         var root = NewRect(GeneratedRootName, canvas, Vector2.zero, Vector2.one, Vector2.zero);
         var panels = new Panels { Root = root };
+
+        // Always-visible reminder of the chosen deck, so "did I pick one?" is never a question.
+        panels.Banner = AddLabel(root, "", 0f, 24f);
+        panels.Banner.rectTransform.anchorMin = new Vector2(0.5f, 1f);
+        panels.Banner.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        panels.Banner.rectTransform.anchoredPosition = new Vector2(0f, -46f);
 
         BuildSettingsPanel(root, panels, controller);
         BuildJoinPanel(root, panels, controller);
@@ -181,6 +187,7 @@ public static class MainMenuSetup
         so.FindProperty("addressField").objectReferenceValue = panels.Address;
         so.FindProperty("deckNameLabel").objectReferenceValue = panels.DeckName;
         so.FindProperty("deckSummaryLabel").objectReferenceValue = panels.DeckSummary;
+        so.FindProperty("selectedDeckBanner").objectReferenceValue = panels.Banner;
         so.FindProperty("masterSlider").objectReferenceValue = panels.Master;
         so.FindProperty("musicSlider").objectReferenceValue = panels.Music;
         so.FindProperty("sfxSlider").objectReferenceValue = panels.Sfx;

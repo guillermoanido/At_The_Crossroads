@@ -74,14 +74,20 @@ public static class DeckBuilderSetup
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CardPrefabPath);
         if (prefab == null) return null;
 
+        // Sits over the catalogue's right edge rather than dead centre, so it never covers the
+        // card the cursor is on. CardPreview also makes itself non-blocking, belt and braces.
         var holder = NewRect("Card Preview", canvas, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
         holder.sizeDelta = new Vector2(400f, 560f);
-        holder.anchoredPosition = new Vector2(0f, 0f);
+        holder.anchoredPosition = new Vector2(-140f, 0f);
 
         var clone = (GameObject)PrefabUtility.InstantiatePrefab(prefab, holder);
         clone.transform.localPosition = Vector3.zero;
         clone.transform.localScale = Vector3.one * 1.1f;
         CardDisplay.DisableGameplayInteractions(clone);
+
+        var group = clone.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+        group.interactable = false;
 
         var preview = holder.gameObject.AddComponent<CardPreview>();
         var so = new SerializedObject(preview);

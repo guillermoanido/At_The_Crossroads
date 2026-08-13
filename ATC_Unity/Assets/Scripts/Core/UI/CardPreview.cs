@@ -13,7 +13,21 @@ public class CardPreview : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        MakeNonBlocking();
         Hide();
+    }
+
+    // The preview must never receive pointer events. If it does, showing it under the cursor steals
+    // the hover from the card that asked for it, which hides the preview, which hands the hover
+    // back — a flicker loop that reads as the card display redrawing over and over.
+    private void MakeNonBlocking()
+    {
+        if (root == null) return;
+
+        var group = root.GetComponent<CanvasGroup>();
+        if (group == null) group = root.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+        group.interactable = false;
     }
 
     public void Show(Card card)
