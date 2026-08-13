@@ -55,4 +55,7 @@ public class StrikeCharge : MonoBehaviour
 
     public static bool IsCharged(GameObject weaponGO)
         => weaponGO != null && weaponGO.GetComponent<StrikeCharge>() != null;
+
+    /// Read the pending bonus WITHOUT spending it — for showing the boosted number on the card.
+    public StrikeBonus Peek() => bonus;
 }

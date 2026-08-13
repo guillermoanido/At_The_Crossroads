@@ -20,10 +20,20 @@ public class CardDisplay : MonoBehaviour
     public Sprite cardBackSprite;
     public GameObject faceContent;
 
+    [Header("Live values")]
+    [Tooltip("Seconds between rechecking the numbers this card shows. Costs and damage change from effects in play, so the face has to keep up — but not every frame.")]
+    [SerializeField] private float liveValueInterval = 0.2f;
+
+    [SerializeField] private Color discountedCostColour = new Color(0.55f, 1f, 0.6f);
+    [SerializeField] private Color raisedCostColour = new Color(1f, 0.55f, 0.45f);
+
     public bool IsFaceUp { get; private set; } = true;
 
     private Sprite frontSprite;
     private bool capturedFront;
+    private float nextLiveValueCheck;
+    private int shownCost = int.MinValue;
+    private string shownEffectText;
 
     private void Awake()
     {
@@ -74,20 +84,61 @@ public class CardDisplay : MonoBehaviour
         if (cardData == null) return;
 
         if (cardNameText != null) cardNameText.text = cardData.cardName;
-        if (cardEffectText != null) cardEffectText.text = cardData.effectDescription;
         if (speedText != null) speedText.text = cardData.speedType.ToString();
-        if (costText != null) costText.text = EffectiveCost().ToString();
+
+        // Force the live numbers to redraw — Render is also what runs after a zone change.
+        shownCost = int.MinValue;
+        shownEffectText = null;
+        RefreshLiveValues();
     }
 
-    // Show what the card costs its owner right now, not its printed cost — a Talent in play can
-    // discount it. Player.RefreshHandCosts re-renders the hand whenever the board changes.
-    private int EffectiveCost()
+    // A card's real numbers move around: a Talent discounts it, a Tax raises it, a Strike charge
+    // boosts the weapon's damage, "X + 1" counts something that changes as you play. Poll on a slow
+    // timer and only touch the text when a number actually changed.
+    private void Update()
     {
-        if (cardData == null) return 0;
+        if (!IsFaceUp || cardData == null) return;
+        if (Time.unscaledTime < nextLiveValueCheck) return;
 
-        var movement = GetComponent<CardMovement>();
-        var owner = movement != null ? movement.Owner : null;
-        return owner != null ? owner.StaminaCostOf(cardData) : cardData.energyCost;
+        nextLiveValueCheck = Time.unscaledTime + Mathf.Max(0.05f, liveValueInterval);
+        RefreshLiveValues();
+    }
+
+    private void RefreshLiveValues()
+    {
+        if (cardData == null) return;
+        var owner = Targetable.OwnerOf(gameObject);
+
+        UpdateCost(owner);
+        UpdateEffectText(owner);
+    }
+
+    private void UpdateCost(Player owner)
+    {
+        if (costText == null) return;
+
+        int cost = CardValues.Cost(owner, cardData);
+        if (cost == shownCost) return;
+        shownCost = cost;
+
+        costText.text = cost.ToString();
+        costText.color = cost == cardData.energyCost ? Color.white
+                       : cost < cardData.energyCost ? discountedCostColour
+                       : raisedCostColour;
+    }
+
+    private void UpdateEffectText(Player owner)
+    {
+        if (cardEffectText == null) return;
+
+        string live = CardValues.LiveSummary(gameObject, cardData, owner);
+        string full = string.IsNullOrEmpty(live)
+            ? cardData.effectDescription
+            : $"{cardData.effectDescription}\n{live}";
+
+        if (full == shownEffectText) return;
+        shownEffectText = full;
+        cardEffectText.text = full;
     }
 
     // Toggle the front-only elements (name, effect, speed, cost). Used to reveal just the back

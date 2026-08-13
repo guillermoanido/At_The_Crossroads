@@ -139,6 +139,21 @@ public class EffectRunner : MonoBehaviour
             case EffectKind.OpponentDiscards:
                 yield return DoDiscard(ctx.opponent, EffectiveAmount(a, ctx));
                 break;
+            case EffectKind.ReturnOwnEquipmentToHand:
+                yield return PickTarget(ctx, t => TargetFilters.IsOwnEquipmentInPlay(t, ctx.controller),
+                    "Choose one of your equipment to take back", t => t.Owner.ReturnToHand(t.gameObject));
+                break;
+            case EffectKind.StealCopyOfOpponentEquipment:
+                yield return PickTarget(ctx, t => TargetFilters.IsOpponentEquipmentInPlay(t, ctx.controller),
+                    "Choose an enemy equipment to copy", t => CopyThenDestroy(ctx, t));
+                break;
+            case EffectKind.SetAsideCardForNextTurn:
+                yield return PickOwnHandCard(ctx.controller, "Choose a card to set aside for next turn",
+                    t => SetAside(ctx.controller, t));
+                break;
+            case EffectKind.TakeCardFromOpponentHand:
+                yield return DoPickpocket(ctx);
+                break;
             case EffectKind.Scry:
                 yield return DoScry(ctx, EffectiveAmount(a, ctx));
                 break;
@@ -326,6 +341,9 @@ public class EffectRunner : MonoBehaviour
             case EffectKind.NextCardAtReflexSpeed:
                 ctx.controller?.GrantNextCardReflexSpeed();
                 break;
+            case EffectKind.NextEquipmentIsFree:
+                ctx.controller?.GrantFreeEquipment();
+                break;
 
             case EffectKind.DestroySelf:
                 if (ctx.sourceCardGO != null)
@@ -385,6 +403,76 @@ public class EffectRunner : MonoBehaviour
             filter: filter,
             prompt: prompt,
             onChosen: t => { if (t != null && t.Owner != null) onChosen(t); done = true; },
+            onCancel: () => done = true);
+
+        yield return new WaitUntil(() => done);
+    }
+
+    // Sleight of Hand: you end up with your own copy of their gear and they lose the original.
+    private static void CopyThenDestroy(EffectContext ctx, Targetable target)
+    {
+        var stolen = target.Data;
+        var thief = ctx.controller;
+        if (stolen == null || thief == null) return;
+
+        var destination = thief.ZoneForType(stolen.cardType);
+        if (destination == null)
+        {
+            Debug.Log($"[Effect] {thief.name} has nowhere to put a copy of {stolen.cardName}.");
+            return;
+        }
+
+        thief.PutCardInZone(stolen, destination);
+        target.Owner?.SendToDiscard(target.gameObject);
+        Debug.Log($"[Effect] {thief.name} copied {stolen.cardName} and destroyed the original.");
+    }
+
+    private static void SetAside(Player controller, Targetable target)
+    {
+        var card = target.Data;
+        if (controller == null || card == null) return;
+
+        controller.handManager.RemoveCardFromHand(target.gameObject);
+        Destroy(target.gameObject);
+        controller.SetAsideForNextTurn(card);
+    }
+
+    // Pickpocket: the thief must SEE the hand to choose from it, so the whole hand is revealed to
+    // them (and only them) before they pick.
+    private IEnumerator DoPickpocket(EffectContext ctx)
+    {
+        var victim = ctx.opponent;
+        if (victim == null || victim.handManager == null || victim.handManager.cardsInHand.Count == 0)
+        {
+            Debug.Log("[Effect] Nothing to steal — the opponent's hand is empty.");
+            yield break;
+        }
+
+        RevealHand(victim);
+
+        bool done = false;
+        NetworkTargeting.Request(
+            chooser: ctx.controller,
+            filter: t => TargetFilters.IsInHandOf(t, victim),
+            prompt: "Choose a card to take from your opponent's hand",
+            onChosen: t => { ctx.controller.TakeIntoHand(t.gameObject); done = true; },
+            onCancel: () => done = true);
+
+        yield return new WaitUntil(() => done);
+    }
+
+    // Pick one of the CONTROLLER's own hand cards.
+    private IEnumerator PickOwnHandCard(Player controller, string prompt, System.Action<Targetable> onChosen)
+    {
+        if (controller == null || controller.handManager == null) yield break;
+        if (controller.handManager.cardsInHand.Count == 0) yield break;
+
+        bool done = false;
+        NetworkTargeting.Request(
+            chooser: controller,
+            filter: t => TargetFilters.IsInHandOf(t, controller),
+            prompt: prompt,
+            onChosen: t => { onChosen(t); done = true; },
             onCancel: () => done = true);
 
         yield return new WaitUntil(() => done);

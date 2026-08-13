@@ -90,8 +90,36 @@ public class Player : MonoBehaviour
     public bool ReflexLocked => reflexLocked;
     public bool CanDraw => !freeCostsNoDraw;
 
+    // Set-Up: held out of the game until this player's next upkeep, then handed back free.
+    private Card setAsideCard;
+    private Card freeCard;
+
+    // Bait and Switch: one Equipment may be redeployed without paying for it.
+    private bool nextEquipmentFree;
+
+    public void GrantFreeEquipment() => nextEquipmentFree = true;
+
     public void AvoidNextDirectDamage() => avoidNextDirectDamage = true;
     public void GrantNextCardReflexSpeed() => nextCardAtReflexSpeed = true;
+
+    /// Put a card aside. At this player's next upkeep it returns to hand costing nothing.
+    public void SetAsideForNextTurn(Card card)
+    {
+        if (card == null) return;
+        setAsideCard = card;
+        Debug.Log($"[Effect] {name} sets {card.cardName} aside — back next turn, free.");
+    }
+
+    private void ReturnSetAsideCard()
+    {
+        if (setAsideCard == null) return;
+
+        var card = setAsideCard;
+        setAsideCard = null;
+        freeCard = card;                  // only THIS card is free, and only until it is played
+        handManager.AddCardToHand(card);
+        Debug.Log($"[Effect] {name} takes {card.cardName} back — it costs nothing this turn.");
+    }
 
     public void AddNextCardSurcharge(int amount) => nextCardSurcharge += Mathf.Max(0, amount);
     public void LockReflex() => reflexLocked = true;
@@ -107,6 +135,7 @@ public class Player : MonoBehaviour
         freeCostsNoDraw = false;
         avoidNextDirectDamage = false;
         nextCardAtReflexSpeed = false;
+        nextEquipmentFree = false;
         SpellsPlayedThisTurn = 0;
         CardsPlayedThisTurn = 0;
         ReflexCardsPlayedThisTurn = 0;
@@ -515,6 +544,7 @@ public class Player : MonoBehaviour
         }
 
         UntapBoard();
+        ReturnSetAsideCard();
         FireTriggersOnBoard(Trigger.OnUpkeep, null);
     }
 
@@ -540,6 +570,8 @@ public class Player : MonoBehaviour
     {
         if (card == null) return 0;
         if (freeCostsNoDraw) return 0;   // Divine Intervention
+        if (card == freeCard) return 0;  // Set-Up handed this one back for free
+        if (nextEquipmentFree && card.IsEquipment) return 0;   // Bait and Switch
 
         // Reductions apply FIRST and bottom out at 0; increases are then added on top. So a card
         // reduced to 0 and taxed by 1 costs 1, not 0.
@@ -617,12 +649,17 @@ public class Player : MonoBehaviour
 
     /// Drop a card straight into the discard pile, building the object for it — used by Scry, where
     /// the binned cards were never on the table to begin with.
-    public void PutCardInDiscard(Card data)
+    public void PutCardInDiscard(Card data) => PutCardInZone(data, discardZone);
+
+    /// Build a fresh card object for `data` and place it in one of this player's zones. Used
+    /// wherever a card appears from nowhere: a scried card being binned, or an equipment copied
+    /// off the opponent's board.
+    public GameObject PutCardInZone(Card data, CardZone destination)
     {
-        if (data == null || discardZone == null || handManager == null) return;
+        if (data == null || destination == null || handManager == null) return null;
 
         var prefab = handManager.cardPrefab;
-        if (prefab == null) return;
+        if (prefab == null) return null;
 
         var parent = handManager.handPosition;
         var cardGO = parent != null ? Instantiate(prefab, parent) : Instantiate(prefab);
@@ -631,9 +668,31 @@ public class Player : MonoBehaviour
         if (display != null) { display.cardData = data; display.SetFaceUp(true); }
         cardGO.GetComponent<CardMovement>()?.Init(handManager);   // gives it an owner
 
-        discardZone.AddCard(cardGO);
+        destination.AddCard(cardGO);
         FreezeCardInteractions(cardGO);
-        SyncBoardActionsForZone(cardGO, discardZone);
+        SyncBoardActionsForZone(cardGO, destination);
+        return cardGO;
+    }
+
+    /// The zone a card of this type belongs in for this player. Public so effects can place a
+    /// card without knowing the zone layout.
+    public CardZone ZoneForType(Card.CardType type) => ZoneFor(type);
+
+    /// Move a card from anywhere into this player's hand — the taking half of a steal.
+    public void TakeIntoHand(GameObject cardGO)
+    {
+        var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
+        if (data == null) return;
+
+        var previousOwner = Targetable.OwnerOf(cardGO);
+        if (previousOwner != null && previousOwner.handManager != null
+            && previousOwner.handManager.cardsInHand.Contains(cardGO))
+            previousOwner.handManager.RemoveCardFromHand(cardGO);
+        else
+            previousOwner?.RemoveFromAnyZone(cardGO);
+
+        Destroy(cardGO);
+        handManager.AddCardToHand(data);
     }
 
     // Bookkeeping every "whenever you play…" effect hangs off.
@@ -641,6 +700,8 @@ public class Player : MonoBehaviour
     {
         CardsPlayedThisTurn++;
         nextCardAtReflexSpeed = false;   // Flow State covers one card only
+        if (cardData == freeCard) freeCard = null;
+        if (cardData.IsEquipment) nextEquipmentFree = false;
         if (cardData.speedType == Card.SpeedType.Reflex) ReflexCardsPlayedThisTurn++;
 
         if (cardData.IsSpell)
@@ -944,7 +1005,7 @@ public class Player : MonoBehaviour
         SyncBoardActionsForZone(cardGO, destination);
     }
 
-    private void RemoveFromAnyZone(GameObject cardGO)
+    internal void RemoveFromAnyZone(GameObject cardGO)
     {
         foreach (var zone in AllZones())
         {

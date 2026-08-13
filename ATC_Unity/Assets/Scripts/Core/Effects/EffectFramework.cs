@@ -132,6 +132,19 @@ public enum EffectKind
 
     // Turn-scoped: the controller's next card ignores its speed restriction.
     NextCardAtReflexSpeed,
+
+    // Bait and Switch: take one of YOUR OWN equipment back, then redeploy one for free.
+    ReturnOwnEquipmentToHand,
+    NextEquipmentIsFree,
+
+    // Sleight of Hand: copy an opponent's equipment into your own board, then destroy theirs.
+    StealCopyOfOpponentEquipment,
+
+    // Set-Up: put a card from hand aside; it comes back next turn and costs nothing.
+    SetAsideCardForNextTurn,
+
+    // Pickpocket: look at the opponent's hand and take one of the cards in it.
+    TakeCardFromOpponentHand,
 }
 
 public enum EffectTarget
@@ -242,6 +255,9 @@ public static class TargetFilters
 
     public static bool IsOwnWeaponInPlay(Targetable t, Player controller)
         => IsCardInPlay(t) && t.Owner == controller && t.Data != null && t.Data.cardType == Card.CardType.Weapon;
+
+    public static bool IsOwnEquipmentInPlay(Targetable t, Player controller)
+        => IsCardInPlay(t) && t.Owner == controller && t.Data != null && t.Data.IsEquipment;
 
     public static bool IsConditionInPlay(Targetable t)
         => IsCardInPlay(t) && t.Data != null && t.Data.cardType == Card.CardType.Condition;
