@@ -25,6 +25,9 @@ public class GameLogHUD : MonoBehaviour
     [Tooltip("Shows what just happened. Leave empty and one is built at runtime.")]
     [SerializeField] private TMP_Text feedLabel;
 
+    [Tooltip("Lists what is waiting on the stack. Leave empty and one is built at runtime.")]
+    [SerializeField] private TMP_Text stackLabel;
+
     /// Called by anything that logs, so the HUD exists as soon as there is something to show.
     /// A GameLogHUD placed in the scene by hand always wins — that is how you restyle it.
     public static void Ensure()
@@ -54,16 +57,21 @@ public class GameLogHUD : MonoBehaviour
     private void OnEnable()
     {
         GameLog.Changed += Refresh;
+        GameStack.Changed += Refresh;
         BuildMissingParts();
     }
 
-    private void OnDisable() => GameLog.Changed -= Refresh;
+    private void OnDisable()
+    {
+        GameLog.Changed -= Refresh;
+        GameStack.Changed -= Refresh;
+    }
 
     /// Builds only the pieces that were not wired in the Inspector, so a partly-authored HUD keeps
     /// whatever you gave it and gets the rest for free.
     private void BuildMissingParts()
     {
-        if (instructionLabel == null || feedLabel == null) Build();
+        if (instructionLabel == null || feedLabel == null || stackLabel == null) Build();
         Refresh();
     }
 
@@ -76,6 +84,7 @@ public class GameLogHUD : MonoBehaviour
 
         if (instructionLabel == null) BuildInstruction();
         if (feedLabel == null) BuildFeed();
+        if (stackLabel == null) BuildStack();
 
         transform.SetAsLastSibling();
     }
@@ -112,6 +121,19 @@ public class GameLogHUD : MonoBehaviour
         feedLabel.color = new Color(1f, 1f, 1f, 0.9f);
     }
 
+    private void BuildStack()
+    {
+        // Top-right: what is queued, and who the game is waiting on.
+        var stack = NewRect("Stack", transform);
+        stack.anchorMin = stack.anchorMax = new Vector2(1f, 1f);
+        stack.pivot = new Vector2(1f, 1f);
+        stack.sizeDelta = new Vector2(420f, 260f);
+        stack.anchoredPosition = new Vector2(-24f, -24f);
+
+        stackLabel = NewLabel(stack, 18f, TextAlignmentOptions.TopRight);
+        stackLabel.color = new Color(0.85f, 0.9f, 1f);
+    }
+
     private void Update()
     {
         // The feed fades on its own so it doesn't sit over the board forever.
@@ -143,6 +165,39 @@ public class GameLogHUD : MonoBehaviour
         var text = new StringBuilder();
         foreach (var line in GameLog.Feed) text.AppendLine(line);
         feedLabel.text = text.ToString();
+
+        RefreshStack();
+    }
+
+    // The stack is the single most confusing thing about a game with a response window: a card that
+    // "did nothing" is usually just sitting here, waiting for somebody to pass.
+    private void RefreshStack()
+    {
+        if (stackLabel == null) return;
+
+        var stack = GameStack.Instance;
+        if (stack == null || stack.IsEmpty)
+        {
+            stackLabel.text = string.Empty;
+            return;
+        }
+
+        var text = new StringBuilder();
+        text.AppendLine($"<b>{Localization.T("stack.title")}</b>");
+
+        // The TOP of the stack resolves first, so show it first.
+        var items = stack.Items;
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            var card = items[i]?.sourceCardData;
+            if (card != null) text.AppendLine($"{items.Count - i}.  {Localization.CardName(card)}");
+        }
+
+        text.AppendLine(stack.IsResolving
+            ? Localization.T("stack.resolving")
+            : Localization.T("stack.waiting"));
+
+        stackLabel.text = text.ToString();
     }
 
     #region UI helpers

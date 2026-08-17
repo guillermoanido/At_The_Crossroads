@@ -70,10 +70,18 @@ public class GameManager : MonoBehaviour
     /// defaults all match. Seats are mapped through the display slots, like the rest of the view.
     public void ClientApplyTurnState(GamePhase phase, int activeSeat, int prioritySeat)
     {
+        if (activeSeat != lastSyncedActiveSeat)
+        {
+            lastSyncedActiveSeat = activeSeat;
+            ClearHandReveals();
+        }
+
         CurrentPhase = phase;
         ActivePlayer = DisplayPlayerForSeatOrNull(activeSeat);
         ControllingPlayer = DisplayPlayerForSeatOrNull(prioritySeat);
     }
+
+    private int lastSyncedActiveSeat = -1;
 
     private Player DisplayPlayerForSeatOrNull(int seat) => seat >= 0 ? DisplayPlayerForSeat(seat) : null;
 
@@ -248,8 +256,17 @@ public class GameManager : MonoBehaviour
         if (phase == GamePhase.Draw) ResolveDrawPhase();
     }
 
+    /// Hands laid open by an effect go back to being backs when the turn ends.
+    public void ClearHandReveals()
+    {
+        if (player1 != null && player1.handManager != null) player1.handManager.ClearReveal();
+        if (player2 != null && player2.handManager != null) player2.handManager.ClearReveal();
+    }
+
     private void ResolveDrawPhase()
     {
+        ClearHandReveals();
+
         // "For the rest of this turn" ends here, for both players — a Silence cast on your turn
         // shouldn't still be muzzling the opponent during theirs.
         if (player1 != null) player1.ClearTurnEffects();

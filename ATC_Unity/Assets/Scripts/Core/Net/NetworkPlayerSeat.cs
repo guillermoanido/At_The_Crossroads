@@ -539,6 +539,154 @@ public class NetworkPlayerSeat : NetworkBehaviour
 
     #endregion
 
+    #region Remote stack reorder (Timewatch)
+
+    private System.Action onReorderFinished;
+
+    /// Server: let this seat's remote player rearrange the stack. Card NAMES go over the wire since
+    /// the client only needs to read them, and the answer comes back as a permutation the host
+    /// applies — the client can't add or drop an item.
+    [Server]
+    public void ServerRequestStackReorder(List<string> cardNames, System.Action onFinished)
+    {
+        if (cardNames == null || cardNames.Count < 2) { onFinished?.Invoke(); return; }
+
+        onReorderFinished = onFinished;
+        TargetReorderStack(cardNames.ToArray());
+    }
+
+    [TargetRpc]
+    private void TargetReorderStack(string[] cardNames)
+        => StackReorderPanel.Show(cardNames, chosen => CmdApplyStackOrder(chosen, cardNames.Length));
+
+    [Command]
+    private void CmdApplyStackOrder(int[] resolutionOrder, int shown)
+    {
+        GameStack.Instance?.ApplyOrder(EffectRunner.ToStackOrder(resolutionOrder, shown));
+
+        var finished = onReorderFinished;
+        onReorderFinished = null;
+        finished?.Invoke();
+    }
+
+    #endregion
+
+    #region Revealing a hand to the player who earned the look
+
+    /// Server: show `handOwner`'s hand to THIS seat's player. On a remote client the opponent's
+    /// hand is only a row of blank backs, so the real cards have to be sent for it to reveal.
+    [Server]
+    public void ServerRevealHandTo(Player handOwner)
+    {
+        var hand = handOwner != null ? handOwner.handManager : null;
+        var db = CardDatabase.Instance;
+        if (hand == null || db == null) return;
+
+        var ids = new int[hand.cardsInHand.Count];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            var data = hand.cardsInHand[i] != null
+                ? hand.cardsInHand[i].GetComponent<CardDisplay>()?.cardData : null;
+            ids[i] = db.Id(data);
+        }
+
+        TargetRevealHand(GameManager.Instance != null ? GameManager.Instance.SeatOf(handOwner) : -1, ids);
+    }
+
+    [TargetRpc]
+    private void TargetRevealHand(int revealedSeat, int[] cardIds)
+    {
+        var hand = HandFor(revealedSeat);
+        var db = CardDatabase.Instance;
+        if (hand == null || db == null) return;
+
+        // Swap the blank backs for the real cards, then let the reveal flag show them face-up.
+        hand.ClearHand();
+        foreach (int id in cardIds)
+        {
+            var card = db.FromId(id);
+            if (card != null) hand.AddCardToHand(card);
+        }
+        hand.RevealUntilEndOfTurn();
+    }
+
+    #endregion
+
+    #region Remote Scry (the scrying player sorts their own deck, wherever they are sitting)
+
+    private System.Action onScryFinished;
+
+    /// Server: ask this seat's remote player to Scry. The host sends the cards it is showing them,
+    /// the client answers with which ones to bin, and the host applies it — the client never gets
+    /// to choose cards the host didn't offer.
+    [Server]
+    public void ServerRequestScry(int count, System.Action onFinished)
+    {
+        var deck = BoundPlayer != null ? BoundPlayer.deckManager : null;
+        var db = CardDatabase.Instance;
+        if (deck == null || db == null) { onFinished?.Invoke(); return; }
+
+        var top = deck.PeekTop(count);
+        if (top.Count == 0) { onFinished?.Invoke(); return; }
+
+        var ids = new int[top.Count];
+        for (int i = 0; i < ids.Length; i++) ids[i] = db.Id(top[i]);
+
+        onScryFinished = onFinished;
+        TargetScry(ids);
+    }
+
+    [TargetRpc]
+    private void TargetScry(int[] cardIds)
+    {
+        var player = GameManager.Instance != null ? GameManager.Instance.LocalDisplayPlayer : null;
+        var panel = player != null ? player.scryPanel : null;
+        var db = CardDatabase.Instance;
+
+        if (panel == null || db == null) { CmdFinishScry(0, new int[0]); return; }
+
+        var cards = new List<Card>();
+        foreach (int id in cardIds)
+        {
+            var card = db.FromId(id);
+            if (card != null) cards.Add(card);
+        }
+
+        panel.OpenRemote(cards, binned => CmdFinishScry(cards.Count, binned));
+    }
+
+    /// The client's answer: how many cards it was shown, and which of them (by index) to discard.
+    /// The count comes back explicitly so binning nothing is not mistaken for showing nothing.
+    [Command]
+    private void CmdFinishScry(int shown, int[] binnedIndices)
+    {
+        var deck = BoundPlayer != null ? BoundPlayer.deckManager : null;
+        if (deck != null && shown > 0)
+        {
+            var top = deck.PeekTop(shown);
+            var binned = new HashSet<int>(binnedIndices ?? new int[0]);
+
+            var kept = new List<Card>();
+            var discarded = new List<Card>();
+            for (int i = 0; i < top.Count; i++)
+            {
+                if (binned.Contains(i)) discarded.Add(top[i]);
+                else kept.Add(top[i]);
+            }
+
+            // Only the window that was shown is rebuilt; the rest of the deck is untouched.
+            deck.ReplaceTop(top.Count, kept);
+            foreach (var card in discarded) BoundPlayer.PutCardInDiscard(card);
+            Debug.Log($"[Scry] Seat {seatIndex} kept {kept.Count} on top and discarded {discarded.Count}.");
+        }
+
+        var finished = onScryFinished;
+        onScryFinished = null;
+        finished?.Invoke();
+    }
+
+    #endregion
+
     #region Remote targeting (host asks, the owning client answers)
 
     // How long the host waits for a client to pick before giving up. The stack is paused for the

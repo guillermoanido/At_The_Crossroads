@@ -19,6 +19,14 @@ public class GameStack : MonoBehaviour
     public bool IsBusy => !IsEmpty || running;
     public int Count => items.Count;
 
+    /// Everything waiting to resolve, oldest first — the top of the stack is the LAST entry.
+    public IReadOnlyList<StackItem> Items => items;
+
+    /// Raised whenever the stack gains, loses or resolves an item, so the display can follow it.
+    public static event System.Action Changed;
+
+    private void NotifyChanged() => Changed?.Invoke();
+
     // The player whose response window is currently open — null when there is none.
     // Use this to show "Player X: respond or pass" so local players know who acts.
     public Player PriorityPlayer => (!IsEmpty && !running && GameManager.Instance != null)
@@ -53,15 +61,43 @@ public class GameStack : MonoBehaviour
             var removed = items[i];
             items.RemoveAt(i);
             UpdatePassButton();
+            NotifyChanged();
             return removed;
         }
         return null;
+    }
+
+    /// Rearrange what is waiting. `order` lists the CURRENT indices in the sequence they should end
+    /// up in, so it can only ever be a permutation of what is already there — a client cannot use
+    /// it to invent or drop an item. Anything missing keeps its place at the end.
+    public void ApplyOrder(int[] order)
+    {
+        if (order == null || order.Length == 0) return;
+
+        var rebuilt = new List<StackItem>(items.Count);
+        var taken = new HashSet<int>();
+
+        foreach (int index in order)
+        {
+            if (index < 0 || index >= items.Count || !taken.Add(index)) continue;
+            rebuilt.Add(items[index]);
+        }
+        for (int i = 0; i < items.Count; i++)
+            if (!taken.Contains(i)) rebuilt.Add(items[i]);
+
+        if (rebuilt.Count != items.Count) return;   // refuse anything that isn't a clean permutation
+
+        items.Clear();
+        items.AddRange(rebuilt);
+        NotifyChanged();
+        Debug.Log($"[Stack] Reordered — {items.Count} item(s) now resolve top-down as listed.");
     }
 
     public void Push(StackItem item)
     {
         if (item == null || item.controller == null) return;
         items.Add(item);
+        NotifyChanged();
         if (GameManager.Instance != null) GameManager.Instance.GivePriorityTo(item.controller.Opponent);
         UpdatePassButton();
         Advance();
@@ -83,6 +119,7 @@ public class GameStack : MonoBehaviour
     {
         running = true;
         UpdatePassButton();
+        NotifyChanged();
 
         while (!IsEmpty)
         {
@@ -97,6 +134,7 @@ public class GameStack : MonoBehaviour
 
         running = false;
         UpdatePassButton();
+        NotifyChanged();
     }
 
     private IEnumerator ResolveTop()
@@ -104,6 +142,7 @@ public class GameStack : MonoBehaviour
         int top = items.Count - 1;
         StackItem item = items[top];
         items.RemoveAt(top);
+        NotifyChanged();
 
         Debug.Log($"[Stack] Resolving {item.sourceCardData?.cardName} ({item.trigger}) " +
                   $"for {item.controller?.name} — {items.Count} item(s) left below it.");

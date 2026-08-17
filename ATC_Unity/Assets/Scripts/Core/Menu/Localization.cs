@@ -145,6 +145,14 @@ public static class Localization
         ["log.you_win"]          = new[] { "YOU WIN", "GANASTE" },
         ["log.you_lose"]         = new[] { "YOU LOSE", "PERDISTE" },
 
+        // Stack display
+        ["stack.title"]          = new[] { "ON THE STACK", "EN LA PILA" },
+        ["stack.waiting"]        = new[] { "Waiting for a response…", "Esperando respuesta…" },
+        ["stack.resolving"]      = new[] { "Resolving…", "Resolviendo…" },
+        ["stack.reorder_title"]  = new[] { "REARRANGE THE STACK", "REORDENAR LA PILA" },
+        ["stack.reorder_hint"]   = new[] { "The top of the list resolves first.", "Lo primero de la lista se resuelve antes." },
+        ["stack.reorder_confirm"]= new[] { "CONFIRM ORDER", "CONFIRMAR ORDEN" },
+
         // Targeting prompts
         ["prompt.default"]       = new[] { "Choose a target  —  Esc to cancel", "Elige un objetivo  —  Esc para cancelar" },
         ["prompt.destroy_card"]  = new[] { "Choose an enemy card in play to destroy", "Elige una carta enemiga en juego para destruir" },

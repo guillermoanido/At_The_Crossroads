@@ -35,6 +35,7 @@ public class ScryPanel : MonoBehaviour
     [SerializeField] private Color orderLabelColor = new Color(1f, 0.95f, 0.4f);
 
     private Player owner;
+    private System.Action<int[]> remoteAnswer;
     private readonly List<Card> revealed = new List<Card>();
     private readonly HashSet<int> markedForDiscard = new HashSet<int>();
     private readonly List<GameObject> spawned = new List<GameObject>();
@@ -69,6 +70,23 @@ public class ScryPanel : MonoBehaviour
         ApplyEntryLooks();
     }
 
+    /// Scry driven from the host: the cards were sent to us, and our answer goes back over the wire
+    /// rather than touching a deck this machine does not own.
+    public void OpenRemote(List<Card> cards, System.Action<int[]> onConfirmed)
+    {
+        if (cards == null || cards.Count == 0) { onConfirmed?.Invoke(new int[0]); return; }
+
+        owner = null;                 // the deck lives on the host
+        remoteAnswer = onConfirmed;
+        revealed.Clear();
+        revealed.AddRange(cards);
+        markedForDiscard.Clear();
+
+        RebuildList();
+        if (root != null) root.SetActive(true);
+        Debug.Log($"[Scry] Looking at the top {revealed.Count} card(s) — click any to discard them.");
+    }
+
     public void Open(Player scryingPlayer, int count)
     {
         var deck = scryingPlayer != null ? scryingPlayer.deckManager : null;
@@ -97,7 +115,18 @@ public class ScryPanel : MonoBehaviour
             else kept.Add(revealed[i]);
         }
 
-        if (owner != null && owner.deckManager != null)
+        if (remoteAnswer != null)
+        {
+            // The deck is on the host: send back which cards to bin and let it do the work.
+            var indices = new List<int>();
+            for (int i = 0; i < revealed.Count; i++)
+                if (markedForDiscard.Contains(i)) indices.Add(i);
+
+            var answer = remoteAnswer;
+            remoteAnswer = null;
+            answer(indices.ToArray());
+        }
+        else if (owner != null && owner.deckManager != null)
         {
             owner.deckManager.ReplaceTop(revealed.Count, kept);
             foreach (var card in binned) owner.PutCardInDiscard(card);
@@ -115,6 +144,11 @@ public class ScryPanel : MonoBehaviour
         revealed.Clear();
         markedForDiscard.Clear();
         owner = null;
+
+        // Never leave the host waiting: closing without confirming counts as keeping everything.
+        var pending = remoteAnswer;
+        remoteAnswer = null;
+        pending?.Invoke(new int[0]);
     }
 
     /// Clicking an entry toggles whether it is being thrown away.

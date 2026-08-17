@@ -39,10 +39,30 @@ public class HandManager : MonoBehaviour
     /// told: only the local player's own hand is ever readable, so no mis-ordered network callback
     /// can leave the opponent's cards showing. Offline (hotseat) the authored setting stands, since
     /// both players share one screen.
+    /// Set while an effect has laid this hand open to the player looking at it. Lasts until the
+    /// turn ends, then the cards go back to being backs.
+    private bool revealed;
+
+    public void RevealUntilEndOfTurn()
+    {
+        revealed = true;
+        RefreshPrivacy();
+        Debug.Log($"[Reveal] {name} is laid open for the rest of the turn.");
+    }
+
+    public void ClearReveal()
+    {
+        if (!revealed) return;
+        revealed = false;
+        RefreshPrivacy();
+    }
+
     public bool MayShowFaceUp => ShouldShowFaceUp();
 
     private bool ShouldShowFaceUp()
     {
+        if (revealed) return true;   // an effect is showing this hand to whoever is watching
+
         var gm = GameManager.Instance;
         if (gm == null || Owner == null) return showFaceUp;
 

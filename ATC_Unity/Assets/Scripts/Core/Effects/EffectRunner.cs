@@ -126,6 +126,9 @@ public class EffectRunner : MonoBehaviour
             case EffectKind.TakeCardFromOpponentHand:
                 yield return DoPickpocket(ctx);
                 break;
+            case EffectKind.RearrangeStack:
+                yield return DoRearrangeStack(ctx);
+                break;
             case EffectKind.Scry:
                 yield return DoScry(ctx, EffectiveAmount(a, ctx));
                 break;
@@ -291,7 +294,7 @@ public class EffectRunner : MonoBehaviour
                 ctx.controller?.RemoveAllDebuffs();
                 break;
             case EffectKind.RevealOpponentHand:
-                RevealHand(ctx.opponent);
+                RevealHand(ctx.controller, ctx.opponent);
                 break;
 
             case EffectKind.IncreaseNextOpponentCardCost:
@@ -333,20 +336,22 @@ public class EffectRunner : MonoBehaviour
         }
     }
 
-    // No reveal UI yet, so the opponent's hand goes to the console. Whoever is reading the log is
-    // the player who cast it; a proper panel is the obvious next step.
-    private static void RevealHand(Player opponent)
+    // Lay the opponent's hand open for the player who earned the look, and only for them: their
+    // cards turn face-up for the rest of the turn and then go back to being backs.
+    private static void RevealHand(Player viewer, Player handOwner)
     {
-        var hand = opponent != null ? opponent.handManager : null;
-        if (hand == null) return;
+        var hand = handOwner != null ? handOwner.handManager : null;
+        if (hand == null || viewer == null) return;
 
-        var names = new List<string>();
-        foreach (var cardGO in hand.cardsInHand)
+        var viewerSeat = NetworkPlayerSeat.ForPlayer(viewer);
+        if (viewerSeat != null && !viewerSeat.isLocalPlayer)
         {
-            var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
-            names.Add(data != null ? data.cardName : "?");
+            // The viewer is on the other machine, where that hand is only blank backs.
+            viewerSeat.ServerRevealHandTo(handOwner);
+            return;
         }
-        Debug.Log($"[Reveal] {opponent.name}'s hand ({names.Count}): {string.Join(", ", names)}");
+
+        hand.RevealUntilEndOfTurn();
     }
 
     private static void CheckAscension(Player player)
@@ -420,7 +425,7 @@ public class EffectRunner : MonoBehaviour
             yield break;
         }
 
-        RevealHand(victim);
+        RevealHand(ctx.controller, victim);
 
         bool done = false;
         NetworkTargeting.Request(
@@ -472,12 +477,82 @@ public class EffectRunner : MonoBehaviour
         }
     }
 
+    // Rearranging happens on the screen of whoever cast it, and the answer is applied by the host.
+    private IEnumerator DoRearrangeStack(EffectContext ctx)
+    {
+        var stack = GameStack.Instance;
+        var reorderer = ctx.controller;
+        if (stack == null || reorderer == null || stack.Count < 2)
+        {
+            Debug.Log("[Stack] Nothing worth rearranging.");
+            yield break;
+        }
+
+        var names = StackCardNames(stack);
+
+        var seat = NetworkPlayerSeat.ForPlayer(reorderer);
+        if (seat != null && !seat.isLocalPlayer)
+        {
+            bool answered = false;
+            seat.ServerRequestStackReorder(names, () => answered = true);
+            yield return new WaitUntil(() => answered);
+            yield break;
+        }
+
+        bool done = false;
+        StackReorderPanel.Show(names, chosen => { stack.ApplyOrder(ToStackOrder(chosen, names.Count)); done = true; });
+        yield return new WaitUntil(() => done);
+    }
+
+    /// Stack items in RESOLUTION order — the top of the stack resolves first, so it is listed first.
+    public static List<string> StackCardNames(GameStack stack)
+    {
+        var names = new List<string>();
+        var items = stack.Items;
+        for (int i = items.Count - 1; i >= 0; i--)
+            names.Add(Localization.CardName(items[i]?.sourceCardData));
+        return names;
+    }
+
+    /// Turn the panel's answer (resolution order) back into stack indices (bottom-up).
+    public static int[] ToStackOrder(int[] resolutionOrder, int count)
+    {
+        if (resolutionOrder == null) return new int[0];
+
+        var stackOrder = new int[resolutionOrder.Length];
+        for (int i = 0; i < resolutionOrder.Length; i++)
+        {
+            // Both the display list and the result are reversed views of the same list.
+            int displayIndex = resolutionOrder[resolutionOrder.Length - 1 - i];
+            stackOrder[i] = count - 1 - displayIndex;
+        }
+        return stackOrder;
+    }
+
+    // Scry has to happen on the SCRYING player's screen. Effects resolve on the host, so a client's
+    // Scry would otherwise open the panel on the host and let them sort the client's deck.
     private IEnumerator DoScry(EffectContext ctx, int count)
     {
-        if (ctx.controller == null || ctx.controller.scryPanel == null || ctx.controller.deckManager == null) yield break;
+        var scryer = ctx.controller;
+        if (scryer == null || scryer.deckManager == null || count <= 0) yield break;
 
-        var panel = ctx.controller.scryPanel;
-        panel.Open(ctx.controller, count);
+        var seat = NetworkPlayerSeat.ForPlayer(scryer);
+        if (seat != null && !seat.isLocalPlayer)
+        {
+            bool done = false;
+            seat.ServerRequestScry(count, () => done = true);
+            yield return new WaitUntil(() => done);
+            yield break;
+        }
+
+        if (scryer.scryPanel == null)
+        {
+            Debug.LogWarning($"[Scry] {scryer.name} has no Scry Panel assigned — the effect does nothing.");
+            yield break;
+        }
+
+        var panel = scryer.scryPanel;
+        panel.Open(scryer, count);
         yield return new WaitUntil(() => !panel.IsOpen);
     }
 
