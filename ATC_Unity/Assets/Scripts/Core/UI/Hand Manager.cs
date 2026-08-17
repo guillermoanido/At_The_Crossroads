@@ -33,6 +33,30 @@ public class HandManager : MonoBehaviour
 
     public void SetOwner(Player player) => Owner = player;
 
+    /// Whether this hand may be shown face-up on THIS machine.
+    ///
+    /// Online it is derived from ownership rather than trusted to whatever SetFaceUpMode was last
+    /// told: only the local player's own hand is ever readable, so no mis-ordered network callback
+    /// can leave the opponent's cards showing. Offline (hotseat) the authored setting stands, since
+    /// both players share one screen.
+    private bool ShouldShowFaceUp()
+    {
+        var gm = GameManager.Instance;
+        if (gm == null || !gm.OnlineMode) return showFaceUp;
+        return Owner != null && Owner == gm.LocalDisplayPlayer;
+    }
+
+    /// Re-apply that rule to every card currently held.
+    public void RefreshPrivacy()
+    {
+        bool faceUp = ShouldShowFaceUp();
+        foreach (var go in cardsInHand)
+        {
+            var display = go != null ? go.GetComponent<CardDisplay>() : null;
+            if (display != null && display.IsFaceUp != faceUp) display.SetFaceUp(faceUp);
+        }
+    }
+
     public void AddCardToHand(Card cardData)
     {
         var newCard = Instantiate(cardPrefab, handPosition.position, Quaternion.identity, handPosition);
@@ -40,7 +64,7 @@ public class HandManager : MonoBehaviour
 
         var display = newCard.GetComponent<CardDisplay>();
         display.cardData = cardData;
-        display.SetFaceUp(showFaceUp);
+        display.SetFaceUp(ShouldShowFaceUp());
 
         newCard.GetComponent<CardMovement>().Init(this);
 
@@ -95,6 +119,10 @@ public class HandManager : MonoBehaviour
 
     private void LayoutHand()
     {
+        // Every add, remove and clear passes through here, so it is the one place guaranteed to run
+        // whenever a hand changes — and therefore where privacy is worth re-asserting.
+        RefreshPrivacy();
+
         int count = cardsInHand.Count;
         if (count == 0) return;
 

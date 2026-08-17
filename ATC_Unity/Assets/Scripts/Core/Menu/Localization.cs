@@ -92,6 +92,11 @@ public static class Localization
         ["menu.deck_prefix"]     = new[] { "Deck: ", "Mazo: " },
         ["menu.deck_illegal"]    = new[] { "  (not legal yet)", "  (aún no es válido)" },
 
+        // Pause menu (Escape, in every scene)
+        ["pause.title"]          = new[] { "PAUSED", "PAUSA" },
+        ["pause.resume"]         = new[] { "RESUME", "CONTINUAR" },
+        ["pause.to_menu"]        = new[] { "RETURN TO MAIN MENU", "VOLVER AL MENÚ PRINCIPAL" },
+
         // Settings
         ["settings.audio"]       = new[] { "AUDIO", "AUDIO" },
         ["settings.master"]      = new[] { "Master", "General" },

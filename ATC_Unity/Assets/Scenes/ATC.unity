@@ -6665,6 +6665,34 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 5
       objectReference: {fileID: 0}
+    - target: {fileID: 1604332344303335981, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 887.76
+      objectReference: {fileID: 0}
+    - target: {fileID: 1604332344303335981, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 1360.88
+      objectReference: {fileID: 0}
+    - target: {fileID: 1604332344303335981, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.52
+      objectReference: {fileID: 0}
+    - target: {fileID: 1604332344303335981, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.52
+      objectReference: {fileID: 0}
+    - target: {fileID: 1604332344303335981, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.52
+      objectReference: {fileID: 0}
+    - target: {fileID: 1604332344303335981, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 45.000004
+      objectReference: {fileID: 0}
+    - target: {fileID: 1604332344303335981, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 47
+      objectReference: {fileID: 0}
     - target: {fileID: 1801859010296618817, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
       propertyPath: m_Layer
       value: 5
