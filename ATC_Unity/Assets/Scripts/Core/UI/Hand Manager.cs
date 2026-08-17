@@ -44,8 +44,14 @@ public class HandManager : MonoBehaviour
     private bool ShouldShowFaceUp()
     {
         var gm = GameManager.Instance;
-        if (gm == null || !gm.OnlineMode) return showFaceUp;
-        return Owner != null && Owner == gm.LocalDisplayPlayer;
+        if (gm == null || Owner == null) return showFaceUp;
+
+        // Online: each machine only ever reads its own hand.
+        if (gm.OnlineMode) return Owner == gm.LocalDisplayPlayer;
+
+        // Hotseat: both hands share one screen, so only the player who may currently act sees
+        // theirs. That follows priority rather than the turn, so a reflex response still works.
+        return gm.IsControllingPlayer(Owner);
     }
 
     /// Re-apply that rule to every card currently held.

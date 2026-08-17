@@ -36,8 +36,11 @@ public class CardDisplay : MonoBehaviour
     [Tooltip("Seconds between rechecking the numbers this card shows. Costs and damage change from effects in play, so the face has to keep up — but not every frame.")]
     [SerializeField] private float liveValueInterval = 0.2f;
 
-    [Tooltip("Tint on status (Condition) cards in play, marking them as something working against whoever they are attached to.")]
-    [SerializeField] private Color conditionTint = new Color(0.62f, 0.15f, 0.15f);
+    [Tooltip("Outline drawn around status (Condition) cards once they are placed on a player's board.")]
+    [SerializeField] private Color conditionOutline = new Color(0.62f, 0.09f, 0.09f);
+
+    [Tooltip("How thick that outline is, in the card canvas's own units.")]
+    [SerializeField] private Vector2 conditionOutlineWidth = new Vector2(10f, 10f);
 
     [Tooltip("Colour of the cost when nothing is modifying it. Darkened for the light card frames.")]
     [SerializeField] private Color normalCostColour = Color.black;
@@ -77,9 +80,14 @@ public class CardDisplay : MonoBehaviour
 
     private void Render()
     {
+        // Decide which design is live BEFORE anything draws, and do it for the face-down path too.
+        // The prefab can be left with both faces switched on while you lay them out; if the render
+        // trusted that, the second face would keep drawing its own name and rules text straight
+        // through a face-down card — which is exactly how opponents' hands stayed readable.
+        AdoptFaceFor(cardData);
+
         // MayRevealFace is the last word, not IsFaceUp. Whatever asked for a face-up render, a card
-        // sitting in someone else's hand is never shown — that makes leaking an opponent's hand
-        // impossible rather than merely unlikely.
+        // sitting in someone else's hand is never shown.
         if (!IsFaceUp || !MayRevealFace())
         {
             ShowFaceDown();
@@ -95,6 +103,38 @@ public class CardDisplay : MonoBehaviour
         return hand == null || hand.MayShowFaceUp;
     }
 
+    /// A status card that has actually been placed on a player's board. In hand or in a pile it is
+    /// just a card, so it gets no marking — the outline means "this is stuck to someone".
+    private bool IsStatusInPlay()
+    {
+        if (cardData == null || cardData.cardType != Card.CardType.Condition) return false;
+
+        var zone = GetComponentInParent<CardZone>();
+        return zone != null
+            && zone.Kind != CardZone.ZoneKind.Discard
+            && zone.Kind != CardZone.ZoneKind.Exile;
+    }
+
+    // Drawn as an outline rather than a tint so the card art stays true — a status card still has
+    // to be readable by the player suffering it.
+    private void ApplyStatusOutline(bool on)
+    {
+        if (cardImage == null) return;
+
+        var outline = cardImage.GetComponent<Outline>();
+        if (!on)
+        {
+            if (outline != null) outline.enabled = false;
+            return;
+        }
+
+        if (outline == null) outline = cardImage.gameObject.AddComponent<Outline>();
+        outline.enabled = true;
+        outline.effectColor = conditionOutline;
+        outline.effectDistance = conditionOutlineWidth;
+        outline.useGraphicAlpha = false;
+    }
+
     private void ShowFaceDown()
     {
         // Hide only the front-face details, NOT `faceContent`: in the prefab faceContent is the
@@ -107,22 +147,17 @@ public class CardDisplay : MonoBehaviour
 
     private void ShowFaceUp()
     {
-        AdoptFaceFor(cardData);
-
         SetFaceDetailsActive(true);
         if (cardImage != null)
         {
             cardImage.sprite = FrameFor(cardData);
 
-            // Status cards are the one thing on your side of the table that isn't yours — mark
-            // them so a debuff never reads as one of your own permanents. Skipped while the card
-            // is lit as a targeting choice, which owns the colour for the moment.
+            // Leave the tint alone while the card is lit as a targeting choice — that owns the
+            // colour for the moment.
             var targetable = GetComponent<Targetable>();
-            if (targetable == null || !targetable.IsHighlighted)
-            {
-                bool isStatus = cardData != null && cardData.cardType == Card.CardType.Condition;
-                cardImage.color = isStatus ? conditionTint : Color.white;
-            }
+            if (targetable == null || !targetable.IsHighlighted) cardImage.color = Color.white;
+
+            ApplyStatusOutline(IsStatusInPlay());
         }
         if (cardData == null) return;
 
@@ -153,10 +188,12 @@ public class CardDisplay : MonoBehaviour
         return capturedFront ? frontSprite : null;
     }
 
+    // A card with no data yet (an opponent's face-down placeholder) still needs exactly one face
+    // live, so it falls back to the permanent design rather than leaving both showing.
     private CardFace FaceFor(Card card)
     {
-        if (permanentFace == null || transientFace == null || card == null) return null;
-        return card.IsPermanent ? permanentFace : transientFace;
+        if (permanentFace == null || transientFace == null) return null;   // single-layout mode
+        return card != null && !card.IsPermanent ? transientFace : permanentFace;
     }
 
     // Two-layout mode: show the design that suits this card and point every field at ITS labels,
