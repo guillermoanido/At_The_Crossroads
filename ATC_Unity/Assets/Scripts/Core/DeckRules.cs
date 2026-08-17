@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 public static class DeckRules
 {
-    public const int MinDeckSize = 40;
+    public const int MinDeckSize = 30;
 
     /// PLACEHOLDER NUMBERS — tune these two, they are the whole shape of deck building.
     /// The most demanding cards need 17 in a stat, so a budget of 20 buys one class plus a small

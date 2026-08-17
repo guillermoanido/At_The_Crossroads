@@ -16,12 +16,17 @@ public class CardDisplay : MonoBehaviour
     public TMP_Text costText;
     public Image costImage;
 
-    [Header("Frames")]
+    [Header("Frames — simple mode (one layout, two sprites)")]
     [Tooltip("Frame for cards that stay on the battlefield once played — weapons, armour, talents, auras, conditions.")]
     public Sprite permanentFrame;
 
     [Tooltip("Frame for cards that resolve and go to the discard pile — attacks, spells, skills, miracles, consumables.")]
     public Sprite transientFrame;
+
+    [Header("Frames — two-layout mode (optional)")]
+    [Tooltip("Assign both to give each design its OWN text placement. The fields above are then unused, and only the matching face is shown. Leave empty to keep the single shared layout.")]
+    public CardFace permanentFace;
+    public CardFace transientFace;
 
     [Header("Face-down")]
     public Sprite cardBackSprite;
@@ -86,6 +91,8 @@ public class CardDisplay : MonoBehaviour
 
     private void ShowFaceUp()
     {
+        AdoptFaceFor(cardData);
+
         SetFaceDetailsActive(true);
         if (cardImage != null) cardImage.sprite = FrameFor(cardData);
         if (cardData == null) return;
@@ -106,10 +113,40 @@ public class CardDisplay : MonoBehaviour
     {
         if (card == null) return capturedFront ? frontSprite : null;
 
+        // In two-layout mode the face brings its own art, already set in the prefab.
+        var face = FaceFor(card);
+        if (face != null) return face.art != null ? face.art.sprite : null;
+
         var frame = card.IsPermanent ? permanentFrame : transientFrame;
         if (frame != null) return frame;
 
         return capturedFront ? frontSprite : null;
+    }
+
+    private CardFace FaceFor(Card card)
+    {
+        if (permanentFace == null || transientFace == null || card == null) return null;
+        return card.IsPermanent ? permanentFace : transientFace;
+    }
+
+    // Two-layout mode: show the design that suits this card and point every field at ITS labels,
+    // so the rest of this class — and anything else reading cardImage or cardNameText — keeps
+    // working without knowing which design is on screen.
+    private void AdoptFaceFor(Card card)
+    {
+        var face = FaceFor(card);
+        if (face == null) return;
+
+        permanentFace.SetVisible(face == permanentFace);
+        transientFace.SetVisible(face == transientFace);
+
+        cardImage = face.art;
+        cardNameText = face.nameText;
+        cardEffectText = face.effectText;
+        speedText = face.speedText;
+        speedImage = face.speedIcon;
+        costText = face.costText;
+        costImage = face.costIcon;
     }
 
     // A card's real numbers move around: a Talent discounts it, a Tax raises it, a Strike charge

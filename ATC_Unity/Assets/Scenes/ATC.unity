@@ -1063,7 +1063,8 @@ MonoBehaviour:
   listContainer: {fileID: 1203678267}
   cardPrefab: {fileID: 3209648541388789147, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
   cardScale: 0.2
-  selectedScaleBoost: 0.4
+  discardedScale: 0.8
+  discardedTint: {r: 0.45, g: 0.45, b: 0.5, a: 1}
   scaleSlider: {fileID: 0}
   orderLabelFontSize: 120
   orderLabelColor: {r: 1, g: 0.95, b: 0.4, a: 1}
@@ -2506,15 +2507,15 @@ RectTransform:
   m_GameObject: {fileID: 645797794}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 16.819998, y: 16.819998, z: 16.819998}
+  m_LocalScale: {x: 47, y: 47, z: 47}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 1124600397}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 22.996765, y: 256.995}
-  m_SizeDelta: {x: 14.72, y: 18.08}
+  m_AnchoredPosition: {x: 16, y: 256}
+  m_SizeDelta: {x: 5.17, y: 6.36}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!212 &645797796
 SpriteRenderer:
@@ -2656,6 +2657,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 75f0fc9a14a9c264398ebdbb17a78d36, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TargetingService
+  promptLabel: {fileID: 0}
+  promptRoot: {fileID: 0}
 --- !u!114 &668205599
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2869,7 +2872,8 @@ MonoBehaviour:
   listContainer: {fileID: 2053695043}
   cardPrefab: {fileID: 3209648541388789147, guid: cab4a4efefdee044283d58c5cd5df935, type: 3}
   cardScale: 0.2
-  selectedScaleBoost: 0.4
+  discardedScale: 0.8
+  discardedTint: {r: 0.45, g: 0.45, b: 0.5, a: 1}
   scaleSlider: {fileID: 0}
   orderLabelFontSize: 120
   orderLabelColor: {r: 1, g: 0.95, b: 0.4, a: 1}
@@ -4591,8 +4595,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: c2c2d14c6f9b96941aaf8c1b8a765930, type: 2}
   - {fileID: 11400000, guid: 696b968effa03f64893e5882e4d84464, type: 2}
   - {fileID: 11400000, guid: 696b968effa03f64893e5882e4d84464, type: 2}
-  deckDefinition: {fileID: 0}
-  loadFromResources: 1
+  deckDefinition: {fileID: 11400000, guid: 8caefc7354b9dee4f97d617aa718cc3f, type: 2}
+  loadFromResources: 0
 --- !u!1 &1152810644
 GameObject:
   m_ObjectHideFlags: 0
@@ -5035,6 +5039,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Targetable
   highlight: {fileID: 0}
+  highlightTint: {r: 1, g: 0.88, b: 0.35, a: 1}
 --- !u!1 &1263678034
 GameObject:
   m_ObjectHideFlags: 0
@@ -6642,8 +6647,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: c2c2d14c6f9b96941aaf8c1b8a765930, type: 2}
   - {fileID: 11400000, guid: 696b968effa03f64893e5882e4d84464, type: 2}
   - {fileID: 11400000, guid: 696b968effa03f64893e5882e4d84464, type: 2}
-  deckDefinition: {fileID: 0}
-  loadFromResources: 1
+  deckDefinition: {fileID: 11400000, guid: 4e5555b4dac1e4e429491502405ad25a, type: 2}
+  loadFromResources: 0
 --- !u!1001 &1562802856
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -7041,6 +7046,7 @@ MonoBehaviour:
   evaluationMethod: 0
   evaluationInterval: 3
   timeInterpolationGui: 0
+  showLanAddress: 1
 --- !u!4 &1617434408
 Transform:
   m_ObjectHideFlags: 0
@@ -8528,15 +8534,15 @@ RectTransform:
   m_GameObject: {fileID: 2016076569}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 16.82, y: 16.82, z: 16.82}
+  m_LocalScale: {x: 47.05, y: 47.05, z: 47.05}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 1544209300}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 0.0045871735, y: -189.9996}
-  m_SizeDelta: {x: 14.72, y: 18.08}
+  m_AnchoredPosition: {x: 2.295, y: -196}
+  m_SizeDelta: {x: 4.59, y: 5.64}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!212 &2016076571
 SpriteRenderer:
