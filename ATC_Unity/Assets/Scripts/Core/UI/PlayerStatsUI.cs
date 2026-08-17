@@ -12,10 +12,12 @@ public class PlayerStatsUI : MonoBehaviour
     [Tooltip("Shows every active status beside the other stats. Auto-created next to the defence label if left empty.")]
     [SerializeField] private TMP_Text statusText;
 
-    [Tooltip("Glyphs used for each status. Swap for TMP sprite tags like <sprite=0> once you have an icon atlas.")]
-    [SerializeField] private string burnIcon = "🔥";
-    [SerializeField] private string bleedIcon = "🩸";
-    [SerializeField] private string divineShieldIcon = "✦";
+    [Tooltip("Label for each status. Kept to characters LiberationSans actually has — emoji and " +
+             "symbols like ✦ are not in it and render as a hollow box. Swap these for TMP sprite " +
+             "tags such as <sprite=0> once you have an icon atlas.")]
+    [SerializeField] private string burnIcon = "BURN";
+    [SerializeField] private string bleedIcon = "BLEED";
+    [SerializeField] private string divineShieldIcon = "SHIELD";
 
     [SerializeField] private Color burnColour = new Color(0.95f, 0.28f, 0.15f);
     [SerializeField] private Color bleedColour = new Color(0.75f, 0.1f, 0.2f);

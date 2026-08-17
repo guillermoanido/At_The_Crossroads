@@ -462,7 +462,6 @@ public class Player : MonoBehaviour
             Burn /= 2;   // halved, rounded down
         }
 
-        Defense = 0;                       // Block never survives the turn it was gained in
         tookDirectDamageThisTurn = false;
         ResetTriggerBudgets();
     }
@@ -532,6 +531,9 @@ public class Player : MonoBehaviour
 
     public void ResolveUpkeep()
     {
+        // Last turn's Block expires HERE, before start-of-turn triggers top it back up — so
+        // Block a card grants you at upkeep survives to protect you on the opponent's turn.
+        Defense = 0;
         ResetStamina();
 
         if (queuedUpkeepStamina > 0)
@@ -629,6 +631,11 @@ public class Player : MonoBehaviour
         zone.AddCard(cardGO);
         FreezeCardInteractions(cardGO);
         SyncBoardActionsForZone(cardGO, zone);
+
+        int reduction = CostModifier(cardData, EffectKind.ReduceCost);
+        int increase = CostModifier(cardData, EffectKind.IncreaseCost);
+        Debug.Log($"[Cost] {cardData.cardName}: printed {cardData.energyCost} "
+                + $"- {reduction} reduction + {increase} increase = {cost}");
 
         string adjusted = cost != cardData.energyCost ? $" (printed {cardData.energyCost}, adjusted)" : "";
         Debug.Log($"[Play] {name} played {cardData.cardName} for {cost} stamina{adjusted} " +
