@@ -383,10 +383,8 @@ public class Player : MonoBehaviour
         Debug.Log($"[Damage]   HP {hpBefore} → {CurrentHp}  ({hpBefore - CurrentHp} lost)");
 
         int soaked = blocked + warded;
-        if (soaked > 0)
-            GameLog.Say("log.damage_blocked", GameLog.NameOf(this), amount, soaked, hpBefore - CurrentHp);
-        else
-            GameLog.Say("log.damage", GameLog.NameOf(this), hpBefore - CurrentHp);
+        if (soaked > 0) GameLog.Say("log.damage_blocked", hpBefore - CurrentHp, soaked);
+        else GameLog.Say("log.damage", hpBefore - CurrentHp);
 
         GameManager.Instance?.CheckForDefeat(this);
     }
@@ -637,7 +635,7 @@ public class Player : MonoBehaviour
                   $"({staminaBefore}→{Stamina}) → {zone.name}");
 
         GameLogHUD.Ensure();
-        GameLog.Say("log.played", GameLog.NameOf(this), Localization.CardName(cardData), cost);
+        GameLog.Say("log.played", Localization.CardName(cardData));
 
         nextCardSurcharge = 0;   // Tithe taxes the NEXT card only
 
@@ -881,8 +879,9 @@ public class Player : MonoBehaviour
         reason = null;
         var gm = GameManager.Instance;
 
-        // Weapons/attacks are combat actions: only on your own turn, only during Combat.
-        if (card.IsCombatCard)
+        // A Reflex ability is a Reflex ability, even on a weapon — Hidden Dagger's whole point is
+        // striking out of turn. Only Channel-speed weapon abilities are pinned to your Combat step.
+        if (card.IsCombatCard && ability.activationSpeed != Card.SpeedType.Reflex)
         {
             if (gm != null && !gm.IsActivePlayer(this))
             {

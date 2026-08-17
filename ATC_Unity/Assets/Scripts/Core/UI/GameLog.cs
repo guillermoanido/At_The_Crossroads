@@ -82,14 +82,4 @@ public static class GameLog
         Changed?.Invoke();
     }
 
-    /// How to refer to a player on screen: from the reader's seat it is "You" or "Opponent",
-    /// which is clearer than "Player 1" once the board is mirrored per machine.
-    public static string NameOf(Player player)
-    {
-        if (player == null) return "?";
-
-        var gm = GameManager.Instance;
-        bool mine = gm != null && player == gm.LocalDisplayPlayer;
-        return Localization.T(mine ? "log.you" : "log.opponent");
-    }
 }

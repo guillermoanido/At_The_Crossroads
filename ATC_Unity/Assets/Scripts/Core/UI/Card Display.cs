@@ -36,6 +36,9 @@ public class CardDisplay : MonoBehaviour
     [Tooltip("Seconds between rechecking the numbers this card shows. Costs and damage change from effects in play, so the face has to keep up — but not every frame.")]
     [SerializeField] private float liveValueInterval = 0.2f;
 
+    [Tooltip("Tint on status (Condition) cards in play, marking them as something working against whoever they are attached to.")]
+    [SerializeField] private Color conditionTint = new Color(0.62f, 0.15f, 0.15f);
+
     [Tooltip("Colour of the cost when nothing is modifying it. Darkened for the light card frames.")]
     [SerializeField] private Color normalCostColour = Color.black;
 
@@ -74,12 +77,22 @@ public class CardDisplay : MonoBehaviour
 
     private void Render()
     {
-        if (!IsFaceUp)
+        // MayRevealFace is the last word, not IsFaceUp. Whatever asked for a face-up render, a card
+        // sitting in someone else's hand is never shown — that makes leaking an opponent's hand
+        // impossible rather than merely unlikely.
+        if (!IsFaceUp || !MayRevealFace())
         {
             ShowFaceDown();
             return;
         }
         ShowFaceUp();
+    }
+
+    /// A card on the table is public. A card in a hand is private to whoever owns that hand.
+    private bool MayRevealFace()
+    {
+        var hand = GetComponentInParent<HandManager>();
+        return hand == null || hand.MayShowFaceUp;
     }
 
     private void ShowFaceDown()
@@ -97,7 +110,20 @@ public class CardDisplay : MonoBehaviour
         AdoptFaceFor(cardData);
 
         SetFaceDetailsActive(true);
-        if (cardImage != null) cardImage.sprite = FrameFor(cardData);
+        if (cardImage != null)
+        {
+            cardImage.sprite = FrameFor(cardData);
+
+            // Status cards are the one thing on your side of the table that isn't yours — mark
+            // them so a debuff never reads as one of your own permanents. Skipped while the card
+            // is lit as a targeting choice, which owns the colour for the moment.
+            var targetable = GetComponent<Targetable>();
+            if (targetable == null || !targetable.IsHighlighted)
+            {
+                bool isStatus = cardData != null && cardData.cardType == Card.CardType.Condition;
+                cardImage.color = isStatus ? conditionTint : Color.white;
+            }
+        }
         if (cardData == null) return;
 
         if (cardNameText != null) cardNameText.text = Localization.CardName(cardData);

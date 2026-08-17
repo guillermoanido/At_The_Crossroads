@@ -49,8 +49,14 @@ public class Targetable : MonoBehaviour
 
     private CardDisplay Display => display != null ? display : display = GetComponent<CardDisplay>();
 
+    /// True while this card is lit up as a legal target. CardDisplay checks it before repainting
+    /// the card art, so a redraw mid-prompt can't wipe the highlight off.
+    public bool IsHighlighted { get; private set; }
+
     public void SetHighlight(bool on)
     {
+        IsHighlighted = on;
+
         if (highlight != null)
         {
             highlight.SetActive(on);

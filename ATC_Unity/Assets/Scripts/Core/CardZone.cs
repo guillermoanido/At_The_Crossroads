@@ -84,6 +84,11 @@ public class CardZone : MonoBehaviour, IPointerClickHandler
 
     public void RefreshLayout()
     {
+        // Destroy() only takes effect at the end of the frame, so a zone can still be holding
+        // references to cards Unity has already torn down — reading .transform on one of those
+        // throws every frame from GameManager's live-scale pass. Drop them first.
+        Cards.RemoveAll(card => card == null);
+
         int count = Cards.Count;
         if (count == 0) return;
 

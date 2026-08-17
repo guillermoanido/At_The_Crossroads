@@ -39,6 +39,8 @@ public class HandManager : MonoBehaviour
     /// told: only the local player's own hand is ever readable, so no mis-ordered network callback
     /// can leave the opponent's cards showing. Offline (hotseat) the authored setting stands, since
     /// both players share one screen.
+    public bool MayShowFaceUp => ShouldShowFaceUp();
+
     private bool ShouldShowFaceUp()
     {
         var gm = GameManager.Instance;

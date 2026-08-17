@@ -137,22 +137,13 @@ public static class Localization
         ["builder.saved"]        = new[] { "Saved", "Guardado" },
         ["builder.default_name"] = new[] { "My Deck", "Mi Mazo" },
 
-        // In-match log. {0}/{1}/{2} are filled in at runtime — keep the placeholders in both forms.
-        ["log.you"]              = new[] { "You", "Tú" },
-        ["log.opponent"]         = new[] { "Your opponent", "Tu oponente" },
-        ["log.played"]           = new[] { "{0} played {1} for {2} Stamina.", "{0} jugó {1} por {2} de Vigor." },
-        ["log.damage"]           = new[] { "{0} took {1} damage.", "{0} recibió {1} de daño." },
-        ["log.damage_blocked"]   = new[] { "{0} was hit for {1} — {2} absorbed, {3} to health.",
-                                           "{0} recibió un golpe de {1} — {2} absorbido, {3} a la vida." },
-        ["log.phase"]            = new[] { "{0}: {1}", "{0}: {1}" },
+        // In-match log — impersonal: it reports what happened, not who did it. {0}/{1} are filled
+        // in at runtime, so keep the placeholders in both forms.
+        ["log.played"]           = new[] { "Played {0}", "{0} jugada" },
+        ["log.damage"]           = new[] { "{0} damage dealt", "{0} daño hecho" },
+        ["log.damage_blocked"]   = new[] { "{0} damage dealt, {1} blocked", "{0} daño hecho, {1} bloqueado" },
         ["log.you_win"]          = new[] { "YOU WIN", "GANASTE" },
         ["log.you_lose"]         = new[] { "YOU LOSE", "PERDISTE" },
-
-        ["phase.Draw"]           = new[] { "Draw phase", "Fase de robo" },
-        ["phase.Main1"]          = new[] { "Main phase", "Fase principal" },
-        ["phase.Combat"]         = new[] { "Combat", "Combate" },
-        ["phase.Main2"]          = new[] { "Second main phase", "Segunda fase principal" },
-        ["phase.EndTurn"]        = new[] { "End of turn", "Fin del turno" },
 
         // Targeting prompts
         ["prompt.default"]       = new[] { "Choose a target  —  Esc to cancel", "Elige un objetivo  —  Esc para cancelar" },

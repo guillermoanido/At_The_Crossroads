@@ -16,14 +16,23 @@ public class GameLogHUD : MonoBehaviour
 
     private static GameLogHUD instance;
 
-    private TMP_Text instructionLabel;
-    private Image instructionBackground;
-    private TMP_Text feedLabel;
+    [Tooltip("Shows what the game is waiting for. Leave empty and one is built at runtime.")]
+    [SerializeField] private TMP_Text instructionLabel;
+
+    [Tooltip("Optional backing plate behind the instruction, hidden while there is nothing to say.")]
+    [SerializeField] private Image instructionBackground;
+
+    [Tooltip("Shows what just happened. Leave empty and one is built at runtime.")]
+    [SerializeField] private TMP_Text feedLabel;
 
     /// Called by anything that logs, so the HUD exists as soon as there is something to show.
+    /// A GameLogHUD placed in the scene by hand always wins — that is how you restyle it.
     public static void Ensure()
     {
         if (instance != null) return;
+
+        instance = FindFirstObjectByType<GameLogHUD>();
+        if (instance != null) { instance.BuildMissingParts(); return; }
 
         var canvas = FindFirstObjectByType<Canvas>();
         if (canvas == null) return;   // no UI in this scene; the console still has everything
@@ -34,18 +43,46 @@ public class GameLogHUD : MonoBehaviour
         go.transform.SetParent(canvas.transform, false);
 
         instance = go.AddComponent<GameLogHUD>();
-        instance.Build();
+        instance.BuildMissingParts();
     }
 
-    private void OnEnable() => GameLog.Changed += Refresh;
+    private void Awake()
+    {
+        if (instance == null) instance = this;
+    }
+
+    private void OnEnable()
+    {
+        GameLog.Changed += Refresh;
+        BuildMissingParts();
+    }
+
     private void OnDisable() => GameLog.Changed -= Refresh;
+
+    /// Builds only the pieces that were not wired in the Inspector, so a partly-authored HUD keeps
+    /// whatever you gave it and gets the rest for free.
+    private void BuildMissingParts()
+    {
+        if (instructionLabel == null || feedLabel == null) Build();
+        Refresh();
+    }
 
     private void Build()
     {
-        Stretch(GetComponent<RectTransform>());
-        gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false;   // never eat a click
+        var self = GetComponent<RectTransform>();
+        if (self != null) Stretch(self);
+        if (GetComponent<CanvasGroup>() == null)
+            gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false;   // never eat a click
 
-        // Instruction: a banner across the bottom, where the eye already is for the hand.
+        if (instructionLabel == null) BuildInstruction();
+        if (feedLabel == null) BuildFeed();
+
+        transform.SetAsLastSibling();
+    }
+
+    private void BuildInstruction()
+    {
+        // A banner across the bottom, where the eye already is for the hand.
         var banner = NewRect("Instruction", transform);
         banner.anchorMin = new Vector2(0.5f, 0f);
         banner.anchorMax = new Vector2(0.5f, 0f);
@@ -59,8 +96,11 @@ public class GameLogHUD : MonoBehaviour
         instructionLabel = NewLabel(banner, 24f, TextAlignmentOptions.Center);
         instructionLabel.color = new Color(1f, 0.88f, 0.35f);
         instructionLabel.fontStyle = FontStyles.Bold;
+    }
 
-        // Feed: top-left, out of the way of the board.
+    private void BuildFeed()
+    {
+        // Top-left, out of the way of the board.
         var feed = NewRect("Feed", transform);
         feed.anchorMin = new Vector2(0f, 1f);
         feed.anchorMax = new Vector2(0f, 1f);
@@ -70,9 +110,6 @@ public class GameLogHUD : MonoBehaviour
 
         feedLabel = NewLabel(feed, 18f, TextAlignmentOptions.TopLeft);
         feedLabel.color = new Color(1f, 1f, 1f, 0.9f);
-
-        transform.SetAsLastSibling();
-        Refresh();
     }
 
     private void Update()
