@@ -25,15 +25,39 @@ public static class CardLibraryGenerator
         Debug.Log($"[CardLibrary] Done — {created} created, {updated} updated in {Folder}.");
     }
 
+    private const string PermanentFramePath = "Assets/Sprites/Frame Permanent.png";
+    private const string TransientFramePath = "Assets/Sprites/Frame Transient.png";
+
     [MenuItem("ATC/Ensure Card Prefab Components")]
     public static void EnsureCardPrefab()
     {
         var root = PrefabUtility.LoadPrefabContents(CardPrefabPath);
         bool changed = false;
+
         if (root.GetComponent<Targetable>() == null) { root.AddComponent<Targetable>(); changed = true; }
+        changed |= AssignFrames(root.GetComponent<CardDisplay>());
+
         if (changed) PrefabUtility.SaveAsPrefabAsset(root, CardPrefabPath);
         PrefabUtility.UnloadPrefabContents(root);
-        Debug.Log(changed ? "[CardPrefab] Added Targetable." : "[CardPrefab] Already has Targetable.");
+        Debug.Log(changed ? "[CardPrefab] Updated." : "[CardPrefab] Already set up.");
+    }
+
+    // Point the card at its two frames, if the art has been imported. Doing it here means dropping
+    // the PNGs in and re-running this menu item is the whole setup.
+    private static bool AssignFrames(CardDisplay display)
+    {
+        if (display == null) return false;
+        bool changed = false;
+
+        var permanent = AssetDatabase.LoadAssetAtPath<Sprite>(PermanentFramePath);
+        var transient = AssetDatabase.LoadAssetAtPath<Sprite>(TransientFramePath);
+
+        if (permanent != null && display.permanentFrame != permanent) { display.permanentFrame = permanent; changed = true; }
+        if (transient != null && display.transientFrame != transient) { display.transientFrame = transient; changed = true; }
+
+        if (permanent == null) Debug.LogWarning($"[CardPrefab] Missing {PermanentFramePath} — permanents keep the old frame.");
+        if (transient == null) Debug.LogWarning($"[CardPrefab] Missing {TransientFramePath} — the rest keep the old frame.");
+        return changed;
     }
 
     private static void Upsert(Def d, ref int created, ref int updated)

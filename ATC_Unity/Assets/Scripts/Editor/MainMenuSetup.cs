@@ -64,11 +64,11 @@ public static class MainMenuSetup
 
             string key = (button.gameObject.name + " " + LabelOf(button)).ToLowerInvariant();
 
-            if (Contains(key, "create lobby", "host"))          wired += Wire(button, controller.HostMatch);
-            else if (Contains(key, "find lobby", "lobby finder", "join")) wired += Wire(button, controller.OpenJoin);
-            else if (Contains(key, "deck"))                      wired += Wire(button, controller.OpenDeckPanel);
-            else if (Contains(key, "settings", "options"))       wired += Wire(button, controller.OpenSettings);
-            else if (Contains(key, "exit", "quit"))              wired += Wire(button, controller.QuitGame);
+            if (Contains(key, "create lobby", "host"))          wired += Wire(button, controller.HostMatch, "menu.host");
+            else if (Contains(key, "find lobby", "lobby finder", "join")) wired += Wire(button, controller.OpenJoin, "menu.join");
+            else if (Contains(key, "deck"))                      wired += Wire(button, controller.OpenDeckPanel, "menu.deck");
+            else if (Contains(key, "settings", "options"))       wired += Wire(button, controller.OpenSettings, "menu.settings");
+            else if (Contains(key, "exit", "quit"))              wired += Wire(button, controller.QuitGame, "menu.exit");
             else Debug.Log($"[Menu] '{button.gameObject.name}' didn't match a known action — left alone.");
         }
         return wired;
@@ -89,8 +89,13 @@ public static class MainMenuSetup
         return text != null ? text.text : string.Empty;
     }
 
-    private static int Wire(Button button, UnityEngine.Events.UnityAction action)
+    private static int Wire(Button button, UnityEngine.Events.UnityAction action, string labelKey)
     {
+        // Bind the scene's own label too, so the player's art follows the language.
+        var label = button.GetComponentInChildren<TMP_Text>(true);
+        if (label != null && label.GetComponent<LocalizedText>() == null)
+            label.gameObject.AddComponent<LocalizedText>().SetKey(labelKey);
+
         for (int i = button.onClick.GetPersistentEventCount() - 1; i >= 0; i--)
             UnityEventTools.RemovePersistentListener(button.onClick, i);
 
@@ -138,30 +143,44 @@ public static class MainMenuSetup
 
     private static void BuildSettingsPanel(Transform root, Panels panels, MainMenuController controller)
     {
-        var panel = NewPanel("Settings Panel", root, "AUDIO", 520f, 420f);
+        var panel = NewPanel("Settings Panel", root, "settings.audio", 520f, 520f);
         panels.Settings = panel.gameObject;
 
-        panels.Master = AddSlider(panel, "Master", 110f);
-        panels.Music  = AddSlider(panel, "Music", 30f);
-        panels.Sfx    = AddSlider(panel, "SFX", -50f);
+        panels.Master = AddSlider(panel, "settings.master", 170f);
+        panels.Music  = AddSlider(panel, "settings.music", 100f);
+        panels.Sfx    = AddSlider(panel, "settings.sfx", 30f);
+
+        Localize(AddLabel(panel, "", -50f, 24f), "settings.language");
+        var english = AddButton(panel, "settings.english", new Vector2(-110f, -100f), null, 200f);
+        var spanish = AddButton(panel, "settings.spanish", new Vector2(110f, -100f), null, 200f);
+        UnityEventTools.AddIntPersistentListener(english.onClick, controller.SetLanguage, (int)Language.English);
+        UnityEventTools.AddIntPersistentListener(spanish.onClick, controller.SetLanguage, (int)Language.Spanish);
+
         AddCloseButton(panel, controller);
+    }
+
+    // Bind a label to a translation key so it follows the language for the rest of its life.
+    private static TMP_Text Localize(TMP_Text label, string key)
+    {
+        label.gameObject.AddComponent<LocalizedText>().SetKey(key);
+        return label;
     }
 
     private static void BuildJoinPanel(Transform root, Panels panels, MainMenuController controller)
     {
-        var panel = NewPanel("Join Panel", root, "JOIN A MATCH", 560f, 340f);
+        var panel = NewPanel("Join Panel", root, "join.title", 560f, 340f);
         panels.Join = panel.gameObject;
 
-        AddLabel(panel, "Host address (shown on the host's screen)", 80f, 22f);
+        Localize(AddLabel(panel, "", 80f, 22f), "join.address_hint");
         panels.Address = AddInput(panel, 30f);
 
-        AddButton(panel, "CONNECT", new Vector2(-110f, -70f), controller.JoinMatch);
+        AddButton(panel, "menu.connect", new Vector2(-110f, -70f), controller.JoinMatch);
         AddCloseButton(panel, controller);
     }
 
     private static void BuildDeckPanel(Transform root, Panels panels, MainMenuController controller)
     {
-        var panel = NewPanel("Deck Panel", root, "CHOOSE YOUR DECK", 620f, 400f);
+        var panel = NewPanel("Deck Panel", root, "deck.title", 620f, 400f);
         panels.Deck = panel.gameObject;
 
         panels.DeckName = AddLabel(panel, "—", 90f, 34f);
@@ -171,10 +190,10 @@ public static class MainMenuSetup
         AddButton(panel, ">", new Vector2(220f, 90f), controller.NextDeck, 60f);
 
         // Browsing already selects, so this button exists to say so plainly and get out of the way.
-        var use = AddButton(panel, "USE THIS DECK", new Vector2(0f, -10f), controller.ConfirmDeck, 260f);
+        var use = AddButton(panel, "deck.use", new Vector2(0f, -10f), controller.ConfirmDeck, 260f);
         use.GetComponent<Image>().color = new Color(0.24f, 0.42f, 0.26f);
 
-        AddButton(panel, "BUILD A DECK", new Vector2(0f, -70f), controller.OpenDeckBuilder, 260f);
+        AddButton(panel, "deck.build", new Vector2(0f, -70f), controller.OpenDeckBuilder, 260f);
         AddCloseButton(panel, controller);
     }
 
@@ -219,7 +238,7 @@ public static class MainMenuSetup
         var background = rect.gameObject.AddComponent<Image>();
         background.color = new Color(0.05f, 0.05f, 0.08f, 0.94f);
 
-        var heading = AddLabel(rect, title, height / 2f - 40f, 28f);
+        var heading = Localize(AddLabel(rect, "", height / 2f - 40f, 28f), title);
         heading.fontStyle = FontStyles.Bold;
 
         rect.gameObject.SetActive(false);
@@ -240,11 +259,11 @@ public static class MainMenuSetup
         return label;
     }
 
-    private static Slider AddSlider(Transform parent, string label, float y)
+    private static Slider AddSlider(Transform parent, string labelKey, float y)
     {
-        AddLabel(parent, label, y + 30f, 20f);
+        Localize(AddLabel(parent, "", y + 30f, 20f), labelKey);
 
-        var rect = NewRect($"{label} Slider", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(360f, 22f));
+        var rect = NewRect($"{labelKey} Slider", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(360f, 22f));
         rect.anchoredPosition = new Vector2(0f, y);
 
         var slider = rect.gameObject.AddComponent<Slider>();
@@ -287,10 +306,11 @@ public static class MainMenuSetup
         return input;
     }
 
-    private static Button AddButton(Transform parent, string text, Vector2 position,
+    // `key` is a translation key; the label binds to it and follows the language.
+    private static Button AddButton(Transform parent, string key, Vector2 position,
                                     UnityEngine.Events.UnityAction action, float width = 200f)
     {
-        var rect = NewRect($"{text} Button", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(width, 52f));
+        var rect = NewRect($"{key} Button", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(width, 52f));
         rect.anchoredPosition = position;
 
         var image = rect.gameObject.AddComponent<Image>();
@@ -301,18 +321,18 @@ public static class MainMenuSetup
 
         var labelRect = NewRect("Text", rect, Vector2.zero, Vector2.one, Vector2.zero);
         var label = labelRect.gameObject.AddComponent<TextMeshProUGUI>();
-        label.text = text;
         label.fontSize = 22f;
         label.alignment = TextAlignmentOptions.Center;
         label.color = Color.white;
         label.raycastTarget = false;
+        Localize(label, key);
 
-        UnityEventTools.AddPersistentListener(button.onClick, action);
+        if (action != null) UnityEventTools.AddPersistentListener(button.onClick, action);
         return button;
     }
 
     private static void AddCloseButton(RectTransform panel, MainMenuController controller)
-        => AddButton(panel, "BACK", new Vector2(0f, -panel.sizeDelta.y / 2f + 42f), controller.CloseAllPanels, 160f);
+        => AddButton(panel, "menu.back", new Vector2(0f, -panel.sizeDelta.y / 2f + 42f), controller.CloseAllPanels, 160f);
 
     #endregion
 }

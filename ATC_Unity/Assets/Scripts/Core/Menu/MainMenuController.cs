@@ -44,6 +44,7 @@ public class MainMenuController : MonoBehaviour
 
     private void Start()
     {
+        Localization.Load();
         GameSettings.Load();
         if (audioMixer != null) GameSettings.UseMixer(audioMixer);
 
@@ -151,8 +152,9 @@ public class MainMenuController : MonoBehaviour
         if (selectedDeckBanner != null)
         {
             selectedDeckBanner.text = deck == null
-                ? "No deck selected — open Create Deck"
-                : $"Deck: {DeckLibrary.DisplayName(deck)}{(legal ? "" : "  (not legal yet)")}";
+                ? Localization.T("menu.no_deck")
+                : Localization.T("menu.deck_prefix") + DeckLibrary.DisplayName(deck)
+                  + (legal ? "" : Localization.T("menu.deck_illegal"));
             selectedDeckBanner.color = legal ? new Color(0.75f, 0.95f, 0.75f) : new Color(1f, 0.7f, 0.45f);
         }
     }
@@ -162,6 +164,13 @@ public class MainMenuController : MonoBehaviour
     #region Settings
 
     public void OpenSettings() => ShowOnly(settingsPanel);
+
+    /// Language buttons. Takes an int so it can be wired straight from a Button's OnClick.
+    public void SetLanguage(int language)
+    {
+        Localization.Set((Language)Mathf.Clamp(language, 0, 1));
+        RefreshDeckLabels();   // deck name and summary are built in code, not bound to a key
+    }
 
     private void BindAudioSliders()
     {

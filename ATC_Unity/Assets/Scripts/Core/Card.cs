@@ -61,6 +61,30 @@ public class Card : ScriptableObject
     public bool IsSpell => cardType == CardType.Spell;
     public bool IsMiracle => cardType == CardType.Miracle;
 
+    /// True for cards that STAY on the battlefield once played. Everything else resolves and goes
+    /// straight to the discard pile. Drives which frame the card art uses, and mirrors the zone
+    /// routing in Player.ZoneFor — keep the two in step.
+    public bool IsPermanent
+    {
+        get
+        {
+            switch (cardType)
+            {
+                case CardType.Weapon:
+                case CardType.Armour:
+                case CardType.Shield:
+                case CardType.Equipment:
+                case CardType.Accesory:
+                case CardType.Talent:
+                case CardType.Aura:
+                case CardType.Condition:   // sits in the opponent's aura zone, but it does stay
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
     /// Whether a cost modifier with this scope applies to this card.
     public bool MatchesCostScope(CostScope scope)
     {

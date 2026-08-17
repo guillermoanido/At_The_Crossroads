@@ -49,14 +49,14 @@ public static class DeckLibrary
 
     public static string DisplayName(DeckDefinition deck)
     {
-        if (deck == null) return "(no deck)";
+        if (deck == null) return Localization.T("deck.none");
         return string.IsNullOrWhiteSpace(deck.deckName) ? deck.name : deck.deckName;
     }
 
     /// A one-line summary for the menu: card count and the attributes it was built around.
     public static string Summary(DeckDefinition deck)
     {
-        if (deck == null) return "No deck selected";
+        if (deck == null) return Localization.T("menu.no_deck");
 
         var attributes = new List<string>();
         if (deck.strength > 0)  attributes.Add($"STR {deck.strength}");
@@ -64,8 +64,10 @@ public static class DeckLibrary
         if (deck.wisdom > 0)    attributes.Add($"WIS {deck.wisdom}");
         if (deck.dexterity > 0) attributes.Add($"DEX {deck.dexterity}");
 
-        string stats = attributes.Count > 0 ? string.Join("  ", attributes) : "no attributes";
-        string legal = deck.Count >= DeckRules.MinDeckSize ? "" : $"  —  needs {DeckRules.MinDeckSize}";
-        return $"{deck.Count} cards  |  {stats}{legal}";
+        string stats = attributes.Count > 0 ? string.Join("  ", attributes) : Localization.T("deck.no_attributes");
+        string legal = deck.Count >= DeckRules.MinDeckSize
+            ? ""
+            : $"  —  {Localization.T("deck.needs")} {DeckRules.MinDeckSize}";
+        return $"{deck.Count} {Localization.T("deck.cards_word")}  |  {stats}{legal}";
     }
 }

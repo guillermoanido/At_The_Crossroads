@@ -46,6 +46,8 @@ public class EffectRunner : MonoBehaviour
         {
             if (ability.effect != EffectKind.DealDamage) { scaled.Add(ability); continue; }
 
+            // Copy the whole ability, not just the amount — dropping the conditional bonus here
+            // silently cost Hidden Dagger its "+2 if you played a Reflex card" while charged.
             scaled.Add(new CardAbility
             {
                 trigger = ability.trigger,
@@ -53,6 +55,10 @@ public class EffectRunner : MonoBehaviour
                 amount = bonus.Scale(ability.amount),
                 target = ability.target,
                 amountSource = ability.amountSource,
+                bonusCondition = ability.bonusCondition,
+                conditionalBonus = ability.conditionalBonus,
+                costScope = ability.costScope,
+                slotType = ability.slotType,
             });
         }
         return scaled;

@@ -16,6 +16,13 @@ public class CardDisplay : MonoBehaviour
     public TMP_Text costText;
     public Image costImage;
 
+    [Header("Frames")]
+    [Tooltip("Frame for cards that stay on the battlefield once played — weapons, armour, talents, auras, conditions.")]
+    public Sprite permanentFrame;
+
+    [Tooltip("Frame for cards that resolve and go to the discard pile — attacks, spells, skills, miracles, consumables.")]
+    public Sprite transientFrame;
+
     [Header("Face-down")]
     public Sprite cardBackSprite;
     public GameObject faceContent;
@@ -80,16 +87,29 @@ public class CardDisplay : MonoBehaviour
     private void ShowFaceUp()
     {
         SetFaceDetailsActive(true);
-        if (cardImage != null && capturedFront) cardImage.sprite = frontSprite;
+        if (cardImage != null) cardImage.sprite = FrameFor(cardData);
         if (cardData == null) return;
 
-        if (cardNameText != null) cardNameText.text = cardData.cardName;
+        if (cardNameText != null) cardNameText.text = Localization.CardName(cardData);
         if (speedText != null) speedText.text = cardData.speedType.ToString();
 
         // Force the live numbers to redraw — Render is also what runs after a zone change.
         shownCost = int.MinValue;
         shownEffectText = null;
         RefreshLiveValues();
+    }
+
+    /// The border art a card wears: one frame for things that stay on the battlefield, another for
+    /// things that resolve and leave. Falls back to whatever the prefab shipped with, so a card
+    /// still renders before the frames are assigned.
+    private Sprite FrameFor(Card card)
+    {
+        if (card == null) return capturedFront ? frontSprite : null;
+
+        var frame = card.IsPermanent ? permanentFrame : transientFrame;
+        if (frame != null) return frame;
+
+        return capturedFront ? frontSprite : null;
     }
 
     // A card's real numbers move around: a Talent discounts it, a Tax raises it, a Strike charge
@@ -131,10 +151,9 @@ public class CardDisplay : MonoBehaviour
     {
         if (cardEffectText == null) return;
 
+        string printed = Localization.CardText(cardData);
         string live = CardValues.LiveSummary(gameObject, cardData, owner);
-        string full = string.IsNullOrEmpty(live)
-            ? cardData.effectDescription
-            : $"{cardData.effectDescription}\n{live}";
+        string full = string.IsNullOrEmpty(live) ? printed : printed + "\n" + live;
 
         if (full == shownEffectText) return;
         shownEffectText = full;

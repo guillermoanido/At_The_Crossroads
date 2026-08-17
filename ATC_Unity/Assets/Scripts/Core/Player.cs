@@ -354,23 +354,34 @@ public class Player : MonoBehaviour
 
         if (sourceCardData != null) tookDirectDamageThisTurn = true;
 
-        int blockBefore = Defense;
-        int shieldBefore = DivineShield;
-        int hpBefore = CurrentHp;
+        string source = sourceCardData != null ? sourceCardData.cardName : "an effect";
+        Debug.Log($"[Damage] ── {source} → {name} ──");
+        Debug.Log($"[Damage]   incoming: {amount}");
 
+        // Triggers get first refusal and may shrink the hit before any shield sees it.
         FireTriggersOnBoard(Trigger.OnControllerTakeDamage, dmg);
-        int afterReduction = dmg.amount;
+        if (dmg.amount != amount)
+            Debug.Log($"[Damage]   reduced by triggers: {amount} → {dmg.amount}");
 
         // Block first, then the ward. Block is spent point-for-point and expires at end of turn, so
         // using it first avoids burning the whole Divine Shield on a hit Block could have eaten.
         // NOTE: the rules let the DEFENDER choose the order when several reductions apply; there is
         // no prompt for that yet, so this fixed order stands in for it.
-        dmg.amount -= SpendBlock(dmg.amount);
-        dmg.amount -= SpendDivineShield(dmg.amount);
+        int blockBefore = Defense;
+        int blocked = SpendBlock(dmg.amount);
+        dmg.amount -= blocked;
+        Debug.Log($"[Damage]   Block {blockBefore} → {Defense}: absorbed {blocked}, {dmg.amount} still coming");
 
+        int shieldBefore = DivineShield;
+        int warded = SpendDivineShield(dmg.amount);
+        dmg.amount -= warded;
+        if (shieldBefore > 0)
+            Debug.Log($"[Damage]   Divine Shield {shieldBefore} → {DivineShield}: absorbed {warded}, {dmg.amount} still coming");
+
+        int hpBefore = CurrentHp;
         if (dmg.amount > 0) AdjustHp(-dmg.amount);
+        Debug.Log($"[Damage]   HP {hpBefore} → {CurrentHp}  ({hpBefore - CurrentHp} lost)");
 
-        LogDamage(amount, afterReduction, blockBefore, shieldBefore, hpBefore, sourceCardData);
         GameManager.Instance?.CheckForDefeat(this);
     }
 
@@ -392,23 +403,6 @@ public class Player : MonoBehaviour
         return absorbed;
     }
 
-    // Damage silently vanishing into a shield pool is the most confusing thing to watch, so spell
-    // the whole chain out: what was thrown, what each shield ate, and what actually reached HP.
-    private void LogDamage(int incoming, int afterReduction, int blockBefore, int shieldBefore, int hpBefore, Card source)
-    {
-        string from = source != null ? source.cardName : "an effect";
-        string reduced = afterReduction != incoming ? $", reduced to {afterReduction}" : "";
-        int blocked = blockBefore - Defense;
-        int shielded = shieldBefore - DivineShield;
-        int toHp = hpBefore - CurrentHp;
-
-        string soak = $"{blocked} blocked (Block {blockBefore}→{Defense})";
-        if (shielded > 0 || shieldBefore > 0)
-            soak += $", {shielded} on Divine Shield ({shieldBefore}→{DivineShield})";
-
-        Debug.Log($"[Damage] {name} hit for {incoming} by {from}{reduced} → {soak}, " +
-                  $"{toHp} to HP ({hpBefore}→{CurrentHp}).");
-    }
 
     #endregion
 

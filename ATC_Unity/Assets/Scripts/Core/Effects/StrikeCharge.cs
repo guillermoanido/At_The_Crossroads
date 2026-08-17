@@ -27,17 +27,28 @@ public class StrikeCharge : MonoBehaviour
 {
     private StrikeBonus bonus;
 
-    /// Hang a charge on `weaponGO`. A second strike replaces the first rather than stacking, so the
-    /// most recent strike card is the one that pays out.
+    /// Hang a charge on `weaponGO`. Striking the same weapon twice STACKS — multipliers multiply
+    /// and bonuses add — so "Strike. Strike." aimed at one weapon is worth more than one strike,
+    /// rather than the second silently overwriting the first.
     public static void Apply(GameObject weaponGO, CardAbility strike)
     {
         if (weaponGO == null || strike == null) return;
 
         var charge = weaponGO.GetComponent<StrikeCharge>();
-        if (charge == null) charge = weaponGO.AddComponent<StrikeCharge>();
+        var incoming = new StrikeBonus(
+            strike.strikeDamageMultiplier, strike.strikeBonusDamage, strike.strikeDestroysWeapon);
+
+        if (charge == null)
+        {
+            charge = weaponGO.AddComponent<StrikeCharge>();
+            charge.bonus = incoming;
+            return;
+        }
 
         charge.bonus = new StrikeBonus(
-            strike.strikeDamageMultiplier, strike.strikeBonusDamage, strike.strikeDestroysWeapon);
+            charge.bonus.DamageMultiplier * incoming.DamageMultiplier,
+            charge.bonus.BonusDamage + incoming.BonusDamage,
+            charge.bonus.DestroysWeapon || incoming.DestroysWeapon);
     }
 
     /// Take the charge off `weaponGO`. Returns false when the weapon isn't charged.
