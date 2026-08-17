@@ -20,48 +20,7 @@ public class EffectRunner : MonoBehaviour
 
     public IEnumerator RunAbilities(Card card, EffectContext ctx, Trigger trigger)
     {
-        // A weapon that was struck earlier this turn cashes the promise in on this activation.
-        StrikeBonus bonus = default;
-        bool struck = trigger == Trigger.Activated && StrikeCharge.TryTake(ctx.sourceCardGO, out bonus);
-
-        var abilities = Collect(card, trigger);
-        if (struck)
-        {
-            abilities = ApplyStrikeBonus(abilities, bonus);
-            Debug.Log($"[Strike] {card?.cardName} activates with its Strike bonus " +
-                      $"(×{bonus.DamageMultiplier} {(bonus.BonusDamage >= 0 ? "+" : "-")} {Mathf.Abs(bonus.BonusDamage)}).");
-        }
-
-        yield return RunSequence(abilities, ctx);
-
-        if (struck && bonus.DestroysWeapon)
-            Targetable.OwnerOf(ctx.sourceCardGO)?.SendToDiscard(ctx.sourceCardGO);
-    }
-
-    // Damage abilities get the strike scaling; everything else the weapon does is untouched.
-    private static List<CardAbility> ApplyStrikeBonus(List<CardAbility> abilities, StrikeBonus bonus)
-    {
-        var scaled = new List<CardAbility>(abilities.Count);
-        foreach (var ability in abilities)
-        {
-            if (ability.effect != EffectKind.DealDamage) { scaled.Add(ability); continue; }
-
-            // Copy the whole ability, not just the amount — dropping the conditional bonus here
-            // silently cost Hidden Dagger its "+2 if you played a Reflex card" while charged.
-            scaled.Add(new CardAbility
-            {
-                trigger = ability.trigger,
-                effect = ability.effect,
-                amount = bonus.Scale(ability.amount),
-                target = ability.target,
-                amountSource = ability.amountSource,
-                bonusCondition = ability.bonusCondition,
-                conditionalBonus = ability.conditionalBonus,
-                costScope = ability.costScope,
-                slotType = ability.slotType,
-            });
-        }
-        return scaled;
+        yield return RunSequence(Collect(card, trigger), ctx);
     }
 
     public void FireAbilitiesImmediate(Card card, EffectContext ctx, Trigger trigger)
@@ -82,12 +41,19 @@ public class EffectRunner : MonoBehaviour
 
     private IEnumerator RunSequence(List<CardAbility> abilities, EffectContext ctx)
     {
+        // "Strike. Strike." picks ONE weapon and uses it twice, so every Strike this card resolves
+        // shares the same choice — the player is only asked once.
+        var strikeTarget = new StrikeTarget();
+
         foreach (var a in abilities)
         {
             Debug.Log($"[Effect] {Describe(a, ctx)}");
-            yield return ResolveOne(a, ctx);
+            yield return ResolveOne(a, ctx, strikeTarget);
         }
     }
+
+    /// The weapon the first Strike picked, reused by any that follow on the same card.
+    private class StrikeTarget { public Targetable Weapon; }
 
     // One readable line per ability so the console reads like a play-by-play: who is doing what,
     // to whom, and how big it is.
@@ -102,7 +68,7 @@ public class EffectRunner : MonoBehaviour
         return $"{controller} resolves {source}: {a.effect} {a.amount} → {target}";
     }
 
-    private IEnumerator ResolveOne(CardAbility a, EffectContext ctx)
+    private IEnumerator ResolveOne(CardAbility a, EffectContext ctx, StrikeTarget strikeTarget)
     {
         switch (a.effect)
         {
@@ -164,7 +130,7 @@ public class EffectRunner : MonoBehaviour
                 yield return DoScry(ctx, EffectiveAmount(a, ctx));
                 break;
             case EffectKind.Strike:
-                yield return DoStrike(ctx, a);
+                yield return DoStrike(ctx, a, strikeTarget);
                 break;
             default:
                 ApplyInstant(a, ctx);
@@ -532,28 +498,80 @@ public class EffectRunner : MonoBehaviour
         yield return new WaitUntil(() => done);
     }
 
-    // Strike: pick one of YOUR weapons, untap it, and promise its next activation an extra effect.
-    // The strike card itself deals no damage — you still have to activate the weapon to swing.
-    // Fizzles if you have no weapon in play.
-    private IEnumerator DoStrike(EffectContext ctx, CardAbility strike)
+    // Strike: pick one of YOUR weapons and USE it — the weapon's own activated ability resolves
+    // right now, for free, with this strike card's scaling folded in. The weapon untaps first, so
+    // you can strike with it whether or not it already attacked. Fizzles with no weapon in play.
+    private IEnumerator DoStrike(EffectContext ctx, CardAbility strike, StrikeTarget shared)
     {
         if (ctx.controller == null) yield break;
 
-        yield return PickTarget(
-            ctx,
-            t => TargetFilters.IsOwnWeaponInPlay(t, ctx.controller),
-            "Choose one of your weapons to Strike with — it untaps and its next activation is stronger",
-            weapon => ChargeWeapon(ctx, strike, weapon));
+        // Only the first Strike on a card asks; the rest hit the same weapon again.
+        if (shared.Weapon == null)
+        {
+            bool done = false;
+            NetworkTargeting.Request(
+                chooser: ctx.controller,
+                filter: t => TargetFilters.IsOwnWeaponInPlay(t, ctx.controller),
+                prompt: Localization.T("prompt.strike"),
+                onChosen: t => { shared.Weapon = t; done = true; },
+                onCancel: () => done = true);
+
+            yield return new WaitUntil(() => done);
+        }
+
+        if (shared.Weapon == null) yield break;   // cancelled, or nothing to strike with
+        UseWeapon(ctx, strike, shared.Weapon);
     }
 
-    private static void ChargeWeapon(EffectContext ctx, CardAbility strike, Targetable weapon)
+    private void UseWeapon(EffectContext ctx, CardAbility strike, Targetable weapon)
     {
-        weapon.GetComponent<CardTapState>()?.Untap();
-        StrikeCharge.Apply(weapon.gameObject, strike);
+        if (weapon == null || weapon.Data == null) return;   // destroyed by an earlier strike
 
-        Debug.Log($"[Strike] {ctx.controller.name} strikes with {weapon.Data?.cardName}: untapped, " +
-                  $"next activation ×{Mathf.Max(1, strike.strikeDamageMultiplier)} " +
-                  $"{(strike.strikeBonusDamage >= 0 ? "+" : "-")} {Mathf.Abs(strike.strikeBonusDamage)}" +
-                  $"{(strike.strikeDestroysWeapon ? ", then destroyed" : "")}.");
+        weapon.GetComponent<CardTapState>()?.Untap();
+
+        var weaponContext = ctx.controller.BuildContext(weapon.gameObject, weapon.Data);
+        int multiplier = Mathf.Max(1, strike.strikeDamageMultiplier);
+        bool used = false;
+
+        foreach (var ability in ActivatedAbilities(weapon.Data))
+        {
+            var scaled = ScaleForStrike(ability, multiplier, strike.strikeBonusDamage);
+            if (scaled.effect == EffectKind.DealDamage)
+                Debug.Log($"[Strike] {ctx.controller.name} strikes with {weapon.Data.cardName}: " +
+                          $"{ability.amount} × {multiplier} {(strike.strikeBonusDamage >= 0 ? "+" : "-")} " +
+                          $"{Mathf.Abs(strike.strikeBonusDamage)} = {EffectiveAmount(scaled, weaponContext)} damage");
+
+            ApplyInstant(scaled, weaponContext);
+            used = true;
+        }
+
+        if (!used) Debug.Log($"[Strike] {weapon.Data.cardName} has no activated ability to use.");
+        if (strike.strikeDestroysWeapon) weapon.Owner?.SendToDiscard(weapon.gameObject);
+    }
+
+    private static IEnumerable<CardAbility> ActivatedAbilities(Card weapon)
+    {
+        if (weapon == null || weapon.abilities == null) yield break;
+        foreach (var ability in weapon.abilities)
+            if (ability != null && ability.trigger == Trigger.Activated && ability.effect != EffectKind.None)
+                yield return ability;
+    }
+
+    // A copy of the weapon's ability with the strike card's scaling applied. Only damage scales;
+    // anything else the weapon does happens exactly as printed.
+    private static CardAbility ScaleForStrike(CardAbility weaponAbility, int multiplier, int bonus)
+    {
+        if (weaponAbility.effect != EffectKind.DealDamage) return weaponAbility;
+
+        return new CardAbility
+        {
+            trigger = weaponAbility.trigger,
+            effect = weaponAbility.effect,
+            amount = Mathf.Max(0, weaponAbility.amount * multiplier + bonus),
+            target = weaponAbility.target,
+            amountSource = weaponAbility.amountSource,
+            bonusCondition = weaponAbility.bonusCondition,
+            conditionalBonus = weaponAbility.conditionalBonus,
+        };
     }
 }

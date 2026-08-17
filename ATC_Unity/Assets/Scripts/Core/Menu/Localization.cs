@@ -131,7 +131,7 @@ public static class Localization
         ["prompt.copy_equip"]    = new[] { "Choose an enemy equipment to copy", "Elige un equipo enemigo para copiar" },
         ["prompt.set_aside"]     = new[] { "Choose a card to set aside for next turn", "Elige una carta para reservar para el próximo turno" },
         ["prompt.pickpocket"]    = new[] { "Choose a card to take from your opponent's hand", "Elige una carta para robar de la mano de tu oponente" },
-        ["prompt.strike"]        = new[] { "Choose one of your weapons to Strike with — it untaps and its next activation is stronger", "Elige un arma para Golpear — se endereza y su próxima activación es más fuerte" },
+        ["prompt.strike"]        = new[] { "Choose one of your weapons to Strike with — it untaps and attacks now", "Elige un arma para Golpear — se endereza y ataca ahora" },
         ["prompt.discard"]       = new[] { "Choose a card to discard", "Elige una carta para descartar" },
         ["prompt.replace"]       = new[] { "is full — choose the card this one replaces", "está lleno — elige la carta que se reemplaza" },
     };

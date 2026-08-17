@@ -25,8 +25,9 @@ public static class CardLibraryGenerator
         Debug.Log($"[CardLibrary] Done — {created} created, {updated} updated in {Folder}.");
     }
 
-    private const string PermanentFramePath = "Assets/Sprites/Frame Permanent.png";
-    private const string TransientFramePath = "Assets/Sprites/Frame Transient.png";
+    private const string PermanentFramePath = "Assets/Sprites/Channel_12.5x17.5.png";
+    private const string TransientFramePath = "Assets/Sprites/Reflex_x2_CFondo.png";
+    private const string CardBackPath       = "Assets/Sprites/Dorso_x2.png";
 
     [MenuItem("ATC/Ensure Card Prefab Components")]
     public static void EnsureCardPrefab()
@@ -42,22 +43,31 @@ public static class CardLibraryGenerator
         Debug.Log(changed ? "[CardPrefab] Updated." : "[CardPrefab] Already set up.");
     }
 
-    // Point the card at its two frames, if the art has been imported. Doing it here means dropping
-    // the PNGs in and re-running this menu item is the whole setup.
+    // Point the card at its two frames and its back. Every card in play is spawned from this
+    // prefab, so setting them here covers the whole game — hands, boards, previews and all.
     private static bool AssignFrames(CardDisplay display)
     {
         if (display == null) return false;
         bool changed = false;
 
-        var permanent = AssetDatabase.LoadAssetAtPath<Sprite>(PermanentFramePath);
-        var transient = AssetDatabase.LoadAssetAtPath<Sprite>(TransientFramePath);
-
-        if (permanent != null && display.permanentFrame != permanent) { display.permanentFrame = permanent; changed = true; }
-        if (transient != null && display.transientFrame != transient) { display.transientFrame = transient; changed = true; }
-
-        if (permanent == null) Debug.LogWarning($"[CardPrefab] Missing {PermanentFramePath} — permanents keep the old frame.");
-        if (transient == null) Debug.LogWarning($"[CardPrefab] Missing {TransientFramePath} — the rest keep the old frame.");
+        changed |= Assign(PermanentFramePath, display.permanentFrame, s => display.permanentFrame = s);
+        changed |= Assign(TransientFramePath, display.transientFrame, s => display.transientFrame = s);
+        changed |= Assign(CardBackPath, display.cardBackSprite, s => display.cardBackSprite = s);
         return changed;
+    }
+
+    private static bool Assign(string path, Sprite current, System.Action<Sprite> set)
+    {
+        var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (sprite == null)
+        {
+            Debug.LogWarning($"[CardPrefab] Missing {path} — that slot keeps whatever it had.");
+            return false;
+        }
+
+        if (current == sprite) return false;
+        set(sprite);
+        return true;
     }
 
     private static void Upsert(Def d, ref int created, ref int updated)

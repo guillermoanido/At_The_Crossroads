@@ -470,8 +470,13 @@ MonoBehaviour:
   speedImage: {fileID: 8843909865396542148}
   costText: {fileID: 5023387906318482003}
   costImage: {fileID: 8068597232785970131}
-  cardBackSprite: {fileID: -4240579064829935649, guid: 950cc9ba24a6e474c8d669d0b3609238, type: 3}
+  permanentFrame: {fileID: 1816950599557222844, guid: b6899be09a2249a4286b361a696396fd, type: 3}
+  transientFrame: {fileID: -6723527803949380875, guid: dd1fbc23b14735a47a7c78165dbb1e7f, type: 3}
+  cardBackSprite: {fileID: 8596231093936081467, guid: 9ab1275453f465b4797ea06fbde77a9f, type: 3}
   faceContent: {fileID: 1992859430633957748}
+  liveValueInterval: 0.2
+  discountedCostColour: {r: 0.55, g: 1, b: 0.6, a: 1}
+  raisedCostColour: {r: 1, g: 0.55, b: 0.45, a: 1}
 --- !u!61 &4679646013124996314
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -1095,7 +1100,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 6973ed6070f4389489ae681a9932186c, type: 3}
+  m_Sprite: {fileID: 1816950599557222844, guid: b6899be09a2249a4286b361a696396fd, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1

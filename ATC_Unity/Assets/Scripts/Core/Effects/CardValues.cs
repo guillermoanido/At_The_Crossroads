@@ -24,7 +24,6 @@ public static class CardValues
         if (card == null || card.abilities == null || owner == null) return string.Empty;
 
         var context = owner.BuildContext(cardGO, card);
-        bool struck = StrikeCharge.IsCharged(cardGO);
         var parts = new List<string>();
 
         foreach (var ability in card.abilities)
@@ -33,11 +32,6 @@ public static class CardValues
 
             int printed = ability.amount;
             int actual = EffectRunner.EffectiveAmount(ability, context);
-
-            // A charged weapon's damage is scaled when it next activates.
-            if (struck && ability.trigger == Trigger.Activated && ability.effect == EffectKind.DealDamage)
-                actual = ScaledByCharge(cardGO, actual);
-
             if (actual == printed) continue;
 
             string noun = NounFor(ability.effect);
@@ -51,13 +45,6 @@ public static class CardValues
         text.Append(string.Join(", ", parts));
         text.Append("</color>");
         return text.ToString();
-    }
-
-    private static int ScaledByCharge(GameObject cardGO, int baseDamage)
-    {
-        // Peek without spending: reading the charge here must not consume the player's Strike.
-        var charge = cardGO != null ? cardGO.GetComponent<StrikeCharge>() : null;
-        return charge != null ? charge.Peek().Scale(baseDamage) : baseDamage;
     }
 
     // Only effects with a number worth showing on the face get a word here; the rest are skipped.
