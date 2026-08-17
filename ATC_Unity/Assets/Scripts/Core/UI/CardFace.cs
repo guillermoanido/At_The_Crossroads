@@ -21,6 +21,32 @@ public class CardFace : MonoBehaviour
     public TMP_Text costText;
     public Image costIcon;
 
+    private Sprite frame;
+    private bool capturedFrame;
+
+    /// This design's frame art, remembered from the prefab.
+    ///
+    /// It has to be cached: turning a card face-down replaces the art Image's sprite with the card
+    /// back, so reading the live sprite after that returns the BACK, and the frame would be lost
+    /// for good — which is exactly how face-down cards came back showing the back art.
+    public Sprite Frame
+    {
+        get
+        {
+            CaptureFrame();
+            return frame;
+        }
+    }
+
+    private void Awake() => CaptureFrame();
+
+    private void CaptureFrame()
+    {
+        if (capturedFrame || art == null) return;
+        frame = art.sprite;
+        capturedFrame = true;
+    }
+
     public void SetVisible(bool visible)
     {
         if (gameObject.activeSelf != visible) gameObject.SetActive(visible);

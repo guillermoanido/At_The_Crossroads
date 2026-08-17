@@ -37,11 +37,14 @@ public class Targetable : MonoBehaviour
     {
         if (cardGO == null) return null;
 
-        var movement = cardGO.GetComponent<CardMovement>();
-        if (movement != null && movement.Owner != null) return movement.Owner;
-
+        // The zone a card SITS IN wins over the hand it came from. A Condition is played from your
+        // hand onto the opponent's board — it is theirs once it lands, and treating it as yours let
+        // you right-click their own status card off the table.
         var zone = cardGO.GetComponentInParent<CardZone>();
-        return zone != null ? zone.Owner : null;
+        if (zone != null && zone.Owner != null) return zone.Owner;
+
+        var movement = cardGO.GetComponent<CardMovement>();
+        return movement != null ? movement.Owner : null;
     }
 
     private CardDisplay Display => display != null ? display : display = GetComponent<CardDisplay>();

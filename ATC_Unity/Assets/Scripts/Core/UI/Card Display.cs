@@ -36,8 +36,11 @@ public class CardDisplay : MonoBehaviour
     [Tooltip("Seconds between rechecking the numbers this card shows. Costs and damage change from effects in play, so the face has to keep up — but not every frame.")]
     [SerializeField] private float liveValueInterval = 0.2f;
 
-    [SerializeField] private Color discountedCostColour = new Color(0.55f, 1f, 0.6f);
-    [SerializeField] private Color raisedCostColour = new Color(1f, 0.55f, 0.45f);
+    [Tooltip("Colour of the cost when nothing is modifying it. Darkened for the light card frames.")]
+    [SerializeField] private Color normalCostColour = Color.black;
+
+    [SerializeField] private Color discountedCostColour = new Color(0.09f, 0.45f, 0.14f);
+    [SerializeField] private Color raisedCostColour = new Color(0.66f, 0.13f, 0.09f);
 
     public bool IsFaceUp { get; private set; } = true;
 
@@ -113,9 +116,10 @@ public class CardDisplay : MonoBehaviour
     {
         if (card == null) return capturedFront ? frontSprite : null;
 
-        // In two-layout mode the face brings its own art, already set in the prefab.
+        // In two-layout mode the face brings its own art, remembered from the prefab rather than
+        // read live — the live sprite may currently be the card back.
         var face = FaceFor(card);
-        if (face != null) return face.art != null ? face.art.sprite : null;
+        if (face != null) return face.Frame;
 
         var frame = card.IsPermanent ? permanentFrame : transientFrame;
         if (frame != null) return frame;
@@ -179,7 +183,7 @@ public class CardDisplay : MonoBehaviour
         shownCost = cost;
 
         costText.text = cost.ToString();
-        costText.color = cost == cardData.energyCost ? Color.white
+        costText.color = cost == cardData.energyCost ? normalCostColour
                        : cost < cardData.energyCost ? discountedCostColour
                        : raisedCostColour;
     }

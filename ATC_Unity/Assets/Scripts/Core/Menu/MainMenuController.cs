@@ -85,13 +85,23 @@ public class MainMenuController : MonoBehaviour
         SceneManager.LoadScene(matchScene);
     }
 
+    // Full legality, not just the card count — an over-budget or over-copied deck would otherwise
+    // reach the host and only be caught there, as warnings in a log nobody is reading.
     private bool HasPlayableDeck()
     {
         var deck = MatchSettings.SelectedDeck;
-        if (deck != null && deck.Count >= DeckRules.MinDeckSize) return true;
+        if (deck == null)
+        {
+            Debug.LogWarning("[Menu] Cannot start: no deck selected.");
+            ShowOnly(deckPanel);
+            return false;
+        }
 
-        Debug.LogWarning($"[Menu] Cannot start: {DeckLibrary.DisplayName(deck)} has " +
-                         $"{(deck != null ? deck.Count : 0)}/{DeckRules.MinDeckSize} cards.");
+        if (DeckRules.Validate(deck, out var problems)) return true;
+
+        Debug.LogWarning($"[Menu] Cannot start with '{DeckLibrary.DisplayName(deck)}':");
+        foreach (var problem in problems) Debug.LogWarning("  " + problem);
+
         ShowOnly(deckPanel);
         return false;
     }

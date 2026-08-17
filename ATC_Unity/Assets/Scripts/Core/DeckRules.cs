@@ -4,11 +4,12 @@ public static class DeckRules
 {
     public const int MinDeckSize = 30;
 
-    /// PLACEHOLDER NUMBERS — tune these two, they are the whole shape of deck building.
-    /// The most demanding cards need 17 in a stat, so a budget of 20 buys one class plus a small
-    /// splash; raise it to allow real two-class decks.
     public const int MaxCopiesPerCard = 3;
-    public const int AttributePointBudget = 20;
+
+    /// The priciest cards in the game need 17 in a stat, so this budget buys exactly one class at
+    /// full depth — a splash costs you access to your own top-end cards. Raise it to allow real
+    /// two-class decks.
+    public const int AttributePointBudget = 17;
 
     public static int SpentAttributePoints(DeckDefinition deck)
         => deck == null ? 0 : deck.strength + deck.intellect + deck.wisdom + deck.dexterity;

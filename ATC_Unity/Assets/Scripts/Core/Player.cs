@@ -382,6 +382,12 @@ public class Player : MonoBehaviour
         if (dmg.amount > 0) AdjustHp(-dmg.amount);
         Debug.Log($"[Damage]   HP {hpBefore} → {CurrentHp}  ({hpBefore - CurrentHp} lost)");
 
+        int soaked = blocked + warded;
+        if (soaked > 0)
+            GameLog.Say("log.damage_blocked", GameLog.NameOf(this), amount, soaked, hpBefore - CurrentHp);
+        else
+            GameLog.Say("log.damage", GameLog.NameOf(this), hpBefore - CurrentHp);
+
         GameManager.Instance?.CheckForDefeat(this);
     }
 
@@ -629,6 +635,9 @@ public class Player : MonoBehaviour
         string adjusted = cost != cardData.energyCost ? $" (printed {cardData.energyCost}, adjusted)" : "";
         Debug.Log($"[Play] {name} played {cardData.cardName} for {cost} stamina{adjusted} " +
                   $"({staminaBefore}→{Stamina}) → {zone.name}");
+
+        GameLogHUD.Ensure();
+        GameLog.Say("log.played", GameLog.NameOf(this), Localization.CardName(cardData), cost);
 
         nextCardSurcharge = 0;   // Tithe taxes the NEXT card only
 

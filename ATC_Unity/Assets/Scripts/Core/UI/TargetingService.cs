@@ -15,8 +15,6 @@ public class TargetingService : MonoBehaviour
 {
     public static TargetingService Instance { get; private set; }
 
-    private const string DefaultPrompt = "Choose a target  —  Esc to cancel";
-
     [Tooltip("Optional label showing what is being targeted. Left empty, a plain on-screen banner is drawn instead so the prompt is never invisible in a build.")]
     [SerializeField] private TMP_Text promptLabel;
 
@@ -27,7 +25,6 @@ public class TargetingService : MonoBehaviour
     private readonly List<CardBoardActions> reEnabledClicks = new List<CardBoardActions>();
     private Action<Targetable> onChosen;
     private Action onCancel;
-    private TargetingPromptHUD fallbackPrompt;
 
     public bool IsActive => onChosen != null;
 
@@ -85,7 +82,7 @@ public class TargetingService : MonoBehaviour
         onChosen = chosen;
         onCancel = cancelled;
         Requester = requester;
-        ShowPrompt(string.IsNullOrEmpty(prompt) ? DefaultPrompt : prompt);
+        ShowPrompt(string.IsNullOrEmpty(prompt) ? Localization.T("prompt.default") : prompt);
         Debug.Log($"[Targeting] Awaiting choice — {validTargets.Count} valid target(s).");
     }
 
@@ -189,18 +186,13 @@ public class TargetingService : MonoBehaviour
     private void ShowPrompt(string text)
     {
         Prompt = text;
+        GameLogHUD.Ensure();
+        GameLog.InstructLiteral(text);
 
         if (promptLabel != null) promptLabel.text = text ?? string.Empty;
         if (promptRoot != null) promptRoot.SetActive(!string.IsNullOrEmpty(text));
-        if (promptLabel == null && promptRoot == null) EnsureFallbackPrompt();
     }
 
-    // With no prompt UI wired in the scene the player would see highlighted cards and no
-    // explanation, so fall back to a plain banner that works in a build without any setup.
-    private void EnsureFallbackPrompt()
-    {
-        if (fallbackPrompt == null) fallbackPrompt = gameObject.AddComponent<TargetingPromptHUD>();
-    }
 
     #endregion
 }

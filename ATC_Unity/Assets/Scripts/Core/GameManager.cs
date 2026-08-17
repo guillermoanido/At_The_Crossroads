@@ -226,6 +226,7 @@ public class GameManager : MonoBehaviour
         if (MatchOver || winner == null) return;
         Winner = winner;
         Debug.Log($"[Match] {winner.name} WINS — {reason}.");
+        GameLog.Instruct(winner == LocalDisplayPlayer ? "log.you_win" : "log.you_lose");
     }
 
     #endregion
@@ -241,6 +242,8 @@ public class GameManager : MonoBehaviour
     {
         CurrentPhase = phase;
         Debug.Log($"[Phase] {ActivePlayer.name} → {phase}");
+        GameLogHUD.Ensure();
+        GameLog.Say("log.phase", GameLog.NameOf(ActivePlayer), Localization.T("phase." + phase));
         NetworkPlayerSeat.ServerRefreshMatchState();   // no-op offline / on clients
 
         if (phase == GamePhase.Draw) ResolveDrawPhase();
