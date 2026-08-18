@@ -27,11 +27,29 @@ MonoBehaviour:
     \u2014 Deal 3 damage."
   abilities:
   - trigger: 1
+    effect: 49
+    amount: 0
+    target: 1
+    amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
+    costScope: 0
+    slotType: 11
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 1
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0
+  - trigger: 1
     effect: 1
     amount: 3
     target: 0
     amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
     costScope: 0
+    slotType: 11
     activationSpeed: 1
     activationCost: 0
     tapToActivate: 1

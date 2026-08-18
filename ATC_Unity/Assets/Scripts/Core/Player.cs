@@ -441,8 +441,9 @@ public class Player : MonoBehaviour
     }
 
     /// End of every turn, for both players: Bleed bites only if this player actually took direct
-    /// damage during the turn; Burn always bites and is then halved, rounded down. Block expires
-    /// last, so it is still available to soak the status damage that just landed.
+    /// damage during the turn; Burn always bites and is then halved, rounded down. Block is still
+    /// up at this point — it expires at its owner's next upkeep, so it soaks this status damage
+    /// and still guards them through the opponent's turn.
     public void ResolveEndOfTurn()
     {
         if (Bleed > 0)
@@ -775,7 +776,7 @@ public class Player : MonoBehaviour
             return false;
         }
 
-        if (!ActivationTimingAllowed(cardData, ability, out string reason))
+        if (!ActivationTimingAllowed(cardData, ability, tap, out string reason))
         {
             Debug.Log($"[Activate] {name} cannot activate {cardData.cardName}: {reason}");
             return false;
@@ -830,9 +831,17 @@ public class Player : MonoBehaviour
             {
                 var data = cardGO != null ? cardGO.GetComponent<CardDisplay>()?.cardData : null;
                 var ability = data != null ? data.FirstActivated() : null;
-                if (ability == null || ability.activationSpeed != Card.SpeedType.Reflex) continue;
-                if (Stamina < ability.activationCost) continue;
+                if (ability == null) continue;
+
+                // A permanent readied by a Reflex Strike (Backstab) counts as a response even
+                // though it prints Channel — that is the whole point of readying it.
                 var tap = cardGO.GetComponent<CardTapState>();
+                bool reflexByStrike = tap != null && tap.PeekPendingStrike() is StrikeBuff charge
+                                   && charge.grantsReflexActivation;
+
+                if (ability.activationSpeed != Card.SpeedType.Reflex && !reflexByStrike) continue;
+                if (Stamina < ability.activationCost) continue;
+
                 bool alreadyTapped = ability.tapToActivate && tap != null && tap.IsTapped;
                 if (!alreadyTapped) return true;
             }
@@ -881,14 +890,21 @@ public class Player : MonoBehaviour
         return true;
     }
 
-    private bool ActivationTimingAllowed(Card card, CardAbility ability, out string reason)
+    private bool ActivationTimingAllowed(Card card, CardAbility ability, CardTapState tap, out string reason)
     {
         reason = null;
         var gm = GameManager.Instance;
 
+        // A Strike from a Reflex card (Backstab) hands its speed to whatever it readied, so the
+        // permanent can answer on the opponent's turn — attacking with a weapon, blocking with a
+        // shield — no matter what speed it prints.
+        var speed = ability.activationSpeed;
+        if (tap != null && tap.PeekPendingStrike() is StrikeBuff charge && charge.grantsReflexActivation)
+            speed = Card.SpeedType.Reflex;
+
         // A Reflex ability is a Reflex ability, even on a weapon — Hidden Dagger's whole point is
         // striking out of turn. Only Channel-speed weapon abilities are pinned to your Combat step.
-        if (card.IsCombatCard && ability.activationSpeed != Card.SpeedType.Reflex)
+        if (card.IsCombatCard && speed != Card.SpeedType.Reflex)
         {
             if (gm != null && !gm.IsActivePlayer(this))
             {
@@ -903,7 +919,7 @@ public class Player : MonoBehaviour
             return true;
         }
 
-        return SpeedAllowedThisPhase(ability.activationSpeed, out reason);
+        return SpeedAllowedThisPhase(speed, out reason);
     }
 
     private bool SpeedAllowedThisPhase(Card.SpeedType speed, out string reason)

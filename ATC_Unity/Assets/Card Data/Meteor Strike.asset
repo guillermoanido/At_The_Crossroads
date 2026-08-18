@@ -30,7 +30,10 @@ MonoBehaviour:
     amount: 21
     target: 0
     amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
     costScope: 0
+    slotType: 11
     activationSpeed: 1
     activationCost: 0
     tapToActivate: 0

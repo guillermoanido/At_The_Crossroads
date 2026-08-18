@@ -16,11 +16,55 @@ public class CardTapState : MonoBehaviour
     /// the board — tapping changes no zone, so nothing else would notice.
     public static event System.Action<CardTapState> TapStateChanged;
 
-    /// Claims this card's once-per-turn allowance for `trigger`. False means it already fired.
-    public bool TryUseTrigger(Trigger trigger) => firedThisTurn.Add(trigger);
+    // "Whenever you play/draw something" means every time, not once a turn — these triggers are
+    // reactions to an action the controller can repeat, so they never claim the per-turn allowance.
+    private static readonly HashSet<Trigger> Unlimited = new HashSet<Trigger>
+    {
+        Trigger.OnControllerPlaysSpell,
+        Trigger.OnControllerDraws,
+        Trigger.OnAnyPlayerPlaysSecondCard,
+    };
 
-    /// New turn, fresh allowance for every trigger on this card.
-    public void ResetTriggers() => firedThisTurn.Clear();
+    /// Claims this card's once-per-turn allowance for `trigger`. False means it already fired.
+    public bool TryUseTrigger(Trigger trigger)
+        => Unlimited.Contains(trigger) || firedThisTurn.Add(trigger);
+
+    /// New turn, fresh allowance for every trigger on this card. Unspent Strike charges lapse too —
+    /// a Strike readies the weapon "for the rest of the turn", not indefinitely.
+    public void ResetTriggers()
+    {
+        firedThisTurn.Clear();
+        pendingStrikes.Clear();
+    }
+
+    #region Strike charges
+
+    private readonly List<StrikeBuff> pendingStrikes = new List<StrikeBuff>();
+
+    public bool HasPendingStrike => pendingStrikes.Count > 0;
+
+    /// A Strike card readied this weapon; its next activation spends this charge.
+    public void QueueStrike(StrikeBuff buff)
+    {
+        if (buff == null) return;
+        pendingStrikes.Add(buff);
+    }
+
+    /// The charge the next activation would spend, without spending it. The activation-timing
+    /// check needs this to know whether the permanent may act at Reflex speed.
+    public StrikeBuff PeekPendingStrike() => pendingStrikes.Count > 0 ? pendingStrikes[0] : null;
+
+    /// Takes the oldest unspent charge, so "Strike. Strike." spends them in the order played.
+    public StrikeBuff ConsumePendingStrike()
+    {
+        if (pendingStrikes.Count == 0) return null;
+
+        var next = pendingStrikes[0];
+        pendingStrikes.RemoveAt(0);
+        return next;
+    }
+
+    #endregion
 
     public void Toggle()
     {

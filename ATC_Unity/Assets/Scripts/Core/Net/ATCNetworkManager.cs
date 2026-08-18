@@ -1,7 +1,7 @@
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
+using System.Collections.Generic;
 using Mirror;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// Step 1 of ATC networking: stand up a localhost/LAN Host/Client connection, hand each
 /// connection a "seat" (0 = host / Player 1, 1 = client / Player 2), and only start the
@@ -12,12 +12,26 @@ using UnityEngine;
 /// "Online Mode" OFF and simply never press Host/Client to play locally as before.
 public class ATCNetworkManager : NetworkManager
 {
+    private enum LinkState { Idle, Connecting, Hosting, Joined, Failed }
+
     [Header("LAN")]
     [Tooltip("Show the host's own LAN address on screen while online, so the other PC knows what to type into the Client field.")]
     [SerializeField] private bool showLanAddress = true;
 
+    [Header("Connection feedback")]
+    [Tooltip("Seconds to wait for the host to answer before reporting the connection as failed.")]
+    [SerializeField] private float connectTimeout = 10f;
+
+    [Tooltip("Scene the 'Back to menu' button returns to after a failed connection.")]
+    [SerializeField] private string menuScene = "Main Menu";
+
     private bool matchStarted;
     private string cachedLanEndpoint;
+    private List<string> cachedLanCandidates;
+
+    private LinkState link = LinkState.Idle;
+    private string linkDetail = string.Empty;
+    private float connectDeadline;
 
     private bool Online => GameManager.Instance == null || GameManager.Instance.OnlineMode;
 
@@ -45,26 +59,137 @@ public class ATCNetworkManager : NetworkManager
         {
             case MatchSettings.Mode.Host:
                 Debug.Log("[Net] Menu asked to host.");
+                link = LinkState.Hosting;
                 StartHost();
                 break;
             case MatchSettings.Mode.Join:
                 networkAddress = MatchSettings.Address;
                 Debug.Log($"[Net] Menu asked to join {networkAddress}.");
+                BeginConnecting();
                 StartClient();
                 break;
         }
     }
 
+    private void BeginConnecting()
+    {
+        link = LinkState.Connecting;
+        linkDetail = string.Empty;
+        connectDeadline = Time.unscaledTime + connectTimeout;
+    }
+
+    // A join that goes nowhere is otherwise completely silent: the scene loads, nothing happens,
+    // and there is no way to tell a wrong address from a blocked port. Time it out and say so.
+    public override void Update()
+    {
+        base.Update();
+
+        if (link != LinkState.Connecting) return;
+
+        if (NetworkClient.isConnected)
+        {
+            link = LinkState.Joined;
+            return;
+        }
+
+        if (Time.unscaledTime < connectDeadline) return;
+
+        Fail($"No answer from {networkAddress}:{ListenPort} after {connectTimeout:0} seconds.");
+    }
+
+    public override void OnClientConnect()
+    {
+        base.OnClientConnect();
+        link = NetworkServer.active ? LinkState.Hosting : LinkState.Joined;
+        linkDetail = string.Empty;
+    }
+
+    public override void OnClientDisconnect()
+    {
+        base.OnClientDisconnect();
+
+        // The host is its own client too, so its own shutdown would otherwise read as a failure.
+        if (NetworkServer.active) return;
+
+        if (link == LinkState.Connecting)
+            Fail($"{networkAddress} refused the connection.");
+        else if (link == LinkState.Joined)
+            Fail("Lost the connection to the host.");
+    }
+
+    public override void OnClientError(TransportError error, string reason)
+    {
+        base.OnClientError(error, reason);
+        Fail($"{error}: {reason}");
+    }
+
+    private void Fail(string detail)
+    {
+        if (link == LinkState.Failed) return;
+
+        link = LinkState.Failed;
+        linkDetail = detail;
+        Debug.LogWarning($"[Net] Connection failed — {detail}");
+    }
+
+    private void BackToMenu()
+    {
+        if (NetworkServer.active) StopHost();
+        else if (NetworkClient.active) StopClient();
+
+        link = LinkState.Idle;
+        if (!string.IsNullOrEmpty(menuScene)) SceneManager.LoadScene(menuScene);
+    }
+
     // Two PCs on one LAN need exactly one thing that isn't on screen anywhere: the host's address.
-    // Print it under Mirror's connect HUD so the second player can type it in and press Client.
+    // Print it, plus whatever the connection is currently doing, so a failure in front of an
+    // audience is diagnosable instead of an empty screen that never changes.
     private void OnGUI()
     {
-        if (!showLanAddress || !Online) return;
-        if (NetworkClient.isConnected || NetworkServer.active) return;
+        if (!Online) return;
 
-        GUILayout.BeginArea(new Rect(10, 118, 420, 60));
-        GUILayout.Label($"This PC on the LAN:  {LanEndpoint}");
-        GUILayout.Label("Host: press Host.   Other PC: type that address above, press Client.");
+        GUILayout.BeginArea(new Rect(10, 118, 470, 220));
+
+        switch (link)
+        {
+            case LinkState.Failed:
+                GUILayout.Label("COULD NOT CONNECT");
+                GUILayout.Label(linkDetail);
+                GUILayout.Space(4);
+                GUILayout.Label("Check, in order:");
+                GUILayout.Label("1. Both PCs joined to the same Wi-Fi network");
+                GUILayout.Label($"2. Host's firewall allows UDP {ListenPort}");
+                GUILayout.Label("3. The address matches what the host's screen shows");
+                GUILayout.Space(4);
+                if (GUILayout.Button("Back to menu", GUILayout.Width(140))) BackToMenu();
+                break;
+
+            case LinkState.Connecting:
+                GUILayout.Label($"Connecting to {networkAddress}:{ListenPort} ...");
+                break;
+
+            case LinkState.Hosting:
+                GUILayout.Label("HOSTING - waiting for the other player.");
+                GUILayout.Space(4);
+                GUILayout.Label("On the other PC choose Join and type:");
+                foreach (var address in LanCandidates)
+                    GUILayout.Label($"    {address}");
+                GUILayout.Label($"(port {ListenPort})");
+                break;
+
+            case LinkState.Joined:
+                GUILayout.Label("Connected - waiting for the match to start.");
+                break;
+
+            default:
+                if (showLanAddress && !NetworkClient.isConnected && !NetworkServer.active)
+                {
+                    GUILayout.Label($"This PC on the LAN:  {LanEndpoint}");
+                    GUILayout.Label("Host: press Host.   Other PC: type that address above, press Client.");
+                }
+                break;
+        }
+
         GUILayout.EndArea();
     }
 
@@ -75,34 +200,34 @@ public class ATCNetworkManager : NetworkManager
         get
         {
             if (string.IsNullOrEmpty(cachedLanEndpoint))
-                cachedLanEndpoint = $"{FindLanAddress()}:{FindListenPort()}";
+                cachedLanEndpoint = $"{LanAddress.Best()}:{ListenPort}";
             return cachedLanEndpoint;
         }
     }
 
-    private static string FindLanAddress()
+    /// Every address the other PC could try, cached for the same reason as LanEndpoint. The host
+    /// screen lists them all rather than guessing, so a PC on two networks still shows both.
+    private List<string> LanCandidates
     {
-        foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+        get
         {
-            if (adapter.OperationalStatus != OperationalStatus.Up) continue;
-            if (adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-
-            foreach (var unicast in adapter.GetIPProperties().UnicastAddresses)
-                if (unicast.Address.AddressFamily == AddressFamily.InterNetwork)
-                    return unicast.Address.ToString();
+            if (cachedLanCandidates == null) cachedLanCandidates = LanAddress.Candidates();
+            return cachedLanCandidates;
         }
-        return "unknown";
     }
 
-    private static string FindListenPort()
+    private static string ListenPort
     {
-        try
+        get
         {
-            return Transport.active != null ? Transport.active.ServerUri().Port.ToString() : "?";
-        }
-        catch
-        {
-            return "?";   // a transport that can't describe itself before starting
+            try
+            {
+                return Transport.active != null ? Transport.active.ServerUri().Port.ToString() : "?";
+            }
+            catch
+            {
+                return "?";   // a transport that can't describe itself before starting
+            }
         }
     }
 

@@ -20,7 +20,42 @@ public class EffectRunner : MonoBehaviour
 
     public IEnumerator RunAbilities(Card card, EffectContext ctx, Trigger trigger)
     {
-        yield return RunSequence(Collect(card, trigger), ctx);
+        var abilities = Collect(card, trigger);
+
+        // Activating a weapon that a Strike readied spends one charge: this activation resolves
+        // with the Strike card's modifiers folded in.
+        var tap = ctx.sourceCardGO != null ? ctx.sourceCardGO.GetComponent<CardTapState>() : null;
+        StrikeBuff buff = null;
+        if (trigger == Trigger.Activated && tap != null && tap.HasPendingStrike)
+        {
+            buff = tap.ConsumePendingStrike();
+            abilities = ScaleAllForStrike(abilities, buff);
+            Debug.Log($"[Strike] {card?.cardName} activates with a Strike charge " +
+                      $"(x{buff.multiplier} {(buff.bonus >= 0 ? "+" : "-")}{Mathf.Abs(buff.bonus)}" +
+                      $"{(buff.destroysWeapon ? ", destroys itself" : "")}).");
+        }
+
+        yield return RunSequence(abilities, ctx);
+
+        if (buff == null) yield break;
+
+        if (buff.destroysWeapon)
+        {
+            Debug.Log($"[Strike] {card?.cardName} is destroyed by the Strike that used it.");
+            Targetable.OwnerOf(ctx.sourceCardGO)?.SendToDiscard(ctx.sourceCardGO);
+        }
+        else if (tap.HasPendingStrike)
+        {
+            // Another Strike is still queued (Double Strike), so ready the weapon again.
+            tap.Untap();
+        }
+    }
+
+    private static List<CardAbility> ScaleAllForStrike(List<CardAbility> abilities, StrikeBuff buff)
+    {
+        var scaled = new List<CardAbility>(abilities.Count);
+        foreach (var a in abilities) scaled.Add(ScaleForStrike(a, buff.multiplier, buff.bonus));
+        return scaled;
     }
 
     public void FireAbilitiesImmediate(Card card, EffectContext ctx, Trigger trigger)
@@ -49,6 +84,13 @@ public class EffectRunner : MonoBehaviour
         {
             Debug.Log($"[Effect] {Describe(a, ctx)}");
             yield return ResolveOne(a, ctx, strikeTarget);
+
+            if (ctx.aborted)
+            {
+                Debug.Log($"[Effect] {ctx.sourceCardData?.cardName} fizzles — a cost went unpaid.");
+                ctx.aborted = false;
+                yield break;
+            }
         }
     }
 
@@ -125,6 +167,9 @@ public class EffectRunner : MonoBehaviour
                 break;
             case EffectKind.TakeCardFromOpponentHand:
                 yield return DoPickpocket(ctx);
+                break;
+            case EffectKind.SacrificeEquipment:
+                yield return DoSacrificeEquipment(ctx);
                 break;
             case EffectKind.RearrangeStack:
                 yield return DoRearrangeStack(ctx);
@@ -457,6 +502,46 @@ public class EffectRunner : MonoBehaviour
 
     // Discarding is a choice: the player losing the cards picks which ones go, one prompt per card.
     // NetworkTargeting sends the prompt to THAT player's machine, not the caster's.
+    // Slingshot's cost. An Equipment on the battlefield is discarded; one already in the discard
+    // is removed from the game. Declining, or having nothing to give, aborts the rest of the card.
+    private IEnumerator DoSacrificeEquipment(EffectContext ctx)
+    {
+        var payer = ctx.controller;
+        if (payer == null) { ctx.aborted = true; yield break; }
+
+        var payable = TargetingService.Collect(t => TargetFilters.IsOwnEquipmentInPlayOrDiscard(t, payer));
+        if (payable.Count == 0)
+        {
+            Debug.Log($"[Cost] {payer.name} has no Equipment to give up.");
+            ctx.aborted = true;
+            yield break;
+        }
+
+        Targetable chosen = null;
+        bool done = false;
+        NetworkTargeting.Request(
+            chooser: payer,
+            filter: t => TargetFilters.IsOwnEquipmentInPlayOrDiscard(t, payer),
+            prompt: Localization.T("prompt.sacrifice_equipment"),
+            onChosen: t => { chosen = t; done = true; },
+            onCancel: () => done = true);
+
+        yield return new WaitUntil(() => done);
+
+        if (chosen == null)
+        {
+            ctx.aborted = true;
+            yield break;
+        }
+
+        bool wasInDiscard = TargetFilters.IsInOwnDiscard(chosen, payer);
+        if (wasInDiscard) payer.SendToExile(chosen.gameObject);
+        else payer.SendToDiscard(chosen.gameObject);
+
+        Debug.Log($"[Cost] {payer.name} gives up {chosen.Data?.cardName} " +
+                  $"({(wasInDiscard ? "removed from the game" : "discarded")}).");
+    }
+
     private IEnumerator DoDiscard(Player discarder, int count)
     {
         if (discarder == null || discarder.handManager == null) yield break;
@@ -580,13 +665,13 @@ public class EffectRunner : MonoBehaviour
     {
         if (ctx.controller == null) yield break;
 
-        // Only the first Strike on a card asks; the rest hit the same weapon again.
+        // Only the first Strike on a card asks; the rest ready the same permanent again.
         if (shared.Weapon == null)
         {
             bool done = false;
             NetworkTargeting.Request(
                 chooser: ctx.controller,
-                filter: t => TargetFilters.IsOwnWeaponInPlay(t, ctx.controller),
+                filter: t => TargetFilters.IsOwnStrikeTargetInPlay(t, ctx.controller),
                 prompt: Localization.T("prompt.strike"),
                 onChosen: t => { shared.Weapon = t; done = true; },
                 onCancel: () => done = true);
@@ -594,42 +679,43 @@ public class EffectRunner : MonoBehaviour
             yield return new WaitUntil(() => done);
         }
 
-        if (shared.Weapon == null) yield break;   // cancelled, or nothing to strike with
-        UseWeapon(ctx, strike, shared.Weapon);
+        if (shared.Weapon == null) yield break;   // cancelled, or nothing to ready
+
+        // A Reflex Strike card (Backstab) passes its speed on, so the readied permanent can answer
+        // out of turn. A Channel one leaves the permanent on its own printed speed.
+        bool atReflex = ctx.sourceCardData != null
+                     && ctx.sourceCardData.speedType == Card.SpeedType.Reflex;
+
+        ArmStrike(shared.Weapon, strike, atReflex);
     }
 
-    private void UseWeapon(EffectContext ctx, CardAbility strike, Targetable weapon)
+    // Strike is an ENABLER, not an attack: it untaps the weapon (or shield) and leaves a charge on
+    // it. The player then activates it themselves, and that activation carries the bonus. Because
+    // activating taps it again, a Strike is effectively an extra use of that permanent this turn.
+    private static void ArmStrike(Targetable weapon, CardAbility strike, bool atReflex)
     {
         if (weapon == null || weapon.Data == null) return;   // destroyed by an earlier strike
 
-        weapon.GetComponent<CardTapState>()?.Untap();
-
-        var weaponContext = ctx.controller.BuildContext(weapon.gameObject, weapon.Data);
-        int multiplier = Mathf.Max(1, strike.strikeDamageMultiplier);
-        bool used = false;
-
-        foreach (var ability in ActivatedAbilities(weapon.Data))
+        var tap = weapon.GetComponent<CardTapState>();
+        if (tap == null)
         {
-            var scaled = ScaleForStrike(ability, multiplier, strike.strikeBonusDamage);
-            if (scaled.effect == EffectKind.DealDamage)
-                Debug.Log($"[Strike] {ctx.controller.name} strikes with {weapon.Data.cardName}: " +
-                          $"{ability.amount} × {multiplier} {(strike.strikeBonusDamage >= 0 ? "+" : "-")} " +
-                          $"{Mathf.Abs(strike.strikeBonusDamage)} = {EffectiveAmount(scaled, weaponContext)} damage");
-
-            ApplyInstant(scaled, weaponContext);
-            used = true;
+            Debug.LogWarning($"[Strike] {weapon.Data.cardName} has no CardTapState — cannot be readied.");
+            return;
         }
 
-        if (!used) Debug.Log($"[Strike] {weapon.Data.cardName} has no activated ability to use.");
-        if (strike.strikeDestroysWeapon) weapon.Owner?.SendToDiscard(weapon.gameObject);
-    }
+        tap.Untap();
+        tap.QueueStrike(new StrikeBuff
+        {
+            multiplier = Mathf.Max(1, strike.strikeDamageMultiplier),
+            bonus = strike.strikeBonusDamage,
+            destroysWeapon = strike.strikeDestroysWeapon,
+            grantsReflexActivation = atReflex,
+        });
 
-    private static IEnumerable<CardAbility> ActivatedAbilities(Card weapon)
-    {
-        if (weapon == null || weapon.abilities == null) yield break;
-        foreach (var ability in weapon.abilities)
-            if (ability != null && ability.trigger == Trigger.Activated && ability.effect != EffectKind.None)
-                yield return ability;
+        Debug.Log($"[Strike] {weapon.Data.cardName} is readied — its next activation is buffed " +
+                  $"(x{Mathf.Max(1, strike.strikeDamageMultiplier)} " +
+                  $"{(strike.strikeBonusDamage >= 0 ? "+" : "-")}{Mathf.Abs(strike.strikeBonusDamage)}" +
+                  $"{(atReflex ? ", usable at Reflex speed" : "")}).");
     }
 
     // A copy of the weapon's ability with the strike card's scaling applied. Only damage scales;

@@ -199,7 +199,10 @@ public static class CardLibraryGenerator
         R("Pickpocket",       Card.CardType.Skill,     Card.SpeedType.Channel, 2, 7,  "Look at your opponent's hand, take one card.",         A(OnPlay(EffectKind.TakeCardFromOpponentHand, 0))),
         R("Hidden Dagger",    Card.CardType.Weapon,    Card.SpeedType.Channel, 2, 8,  "Activate (Reflex) — Deal 1 damage. +2 if you played a Reflex card this turn.", A(WithBonus(Activated(EffectKind.DealDamage, 1, Card.SpeedType.Reflex, EffectTarget.Opponent), AmountCondition.IfYouPlayedAReflexCardThisTurn, 2))),
         R("Backstab",         Card.CardType.Skill,     Card.SpeedType.Reflex,  1, 8,  "Strike: Reflex",                                       A(Strike())),
-        R("Slingshot",        Card.CardType.Weapon,    Card.SpeedType.Channel, 1, 8,  "Activate (Channel) Discard 1 Equipment or remove one from discard — Deal 3 damage.", A(Activated(EffectKind.DealDamage, 3, Card.SpeedType.Channel, EffectTarget.Opponent))),
+        R("Slingshot",        Card.CardType.Weapon,    Card.SpeedType.Channel, 1, 8,  "Activate (Channel) Discard 1 Equipment or remove one from discard — Deal 3 damage.",
+            // The sacrifice is a COST and must resolve first: if it goes unpaid the damage is aborted.
+            A(Activated(EffectKind.SacrificeEquipment, 0, Card.SpeedType.Channel),
+              Activated(EffectKind.DealDamage, 3, Card.SpeedType.Channel, EffectTarget.Opponent))),
         R("Disarm",           Card.CardType.Skill,     Card.SpeedType.Reflex,  1, 9,  "Return target equipment to opponent's hand.",          A(OnPlay(EffectKind.ReturnTargetEquipmentToHand, 0))),
         R("Bait and Switch",  Card.CardType.Skill,     Card.SpeedType.Reflex,  0, 9,  "Return target Equipment you own to hand. You may play 1 Equipment from your hand without paying its cost.", A(OnPlay(EffectKind.ReturnOwnEquipmentToHand, 0), OnPlay(EffectKind.NextEquipmentIsFree, 0))),
         R("Keen Instinct",    Card.CardType.Talent,    Card.SpeedType.Channel, 1, 9,  "All your cards can be played at Reflex speed.",        A(StaticMod(EffectKind.AllowChannelAtReflexSpeed, 1))),

@@ -26,11 +26,29 @@ MonoBehaviour:
   effectDescription: Your next card is cast at reflex speed. Scry 1.
   abilities:
   - trigger: 0
+    effect: 43
+    amount: 0
+    target: 1
+    amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
+    costScope: 0
+    slotType: 11
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0
+  - trigger: 0
     effect: 6
     amount: 1
     target: 1
     amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
     costScope: 0
+    slotType: 11
     activationSpeed: 1
     activationCost: 0
     tapToActivate: 0

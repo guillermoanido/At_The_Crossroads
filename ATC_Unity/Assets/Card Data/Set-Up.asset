@@ -24,4 +24,19 @@ MonoBehaviour:
   wisRequired: 0
   dexRequired: 12
   effectDescription: Place a card face down, next turn play it with cost 0.
-  abilities: []
+  abilities:
+  - trigger: 0
+    effect: 47
+    amount: 0
+    target: 1
+    amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
+    costScope: 0
+    slotType: 11
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0

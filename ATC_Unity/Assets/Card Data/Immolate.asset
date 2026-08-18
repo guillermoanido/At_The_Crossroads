@@ -30,7 +30,10 @@ MonoBehaviour:
     amount: 6
     target: 0
     amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
     costScope: 0
+    slotType: 11
     activationSpeed: 1
     activationCost: 0
     tapToActivate: 0
@@ -42,7 +45,10 @@ MonoBehaviour:
     amount: 3
     target: 1
     amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
     costScope: 0
+    slotType: 11
     activationSpeed: 1
     activationCost: 0
     tapToActivate: 0

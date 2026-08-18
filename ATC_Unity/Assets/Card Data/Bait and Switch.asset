@@ -25,4 +25,34 @@ MonoBehaviour:
   dexRequired: 9
   effectDescription: Return target Equipment you own to hand. You may play 1 Equipment
     from your hand without paying its cost.
-  abilities: []
+  abilities:
+  - trigger: 0
+    effect: 44
+    amount: 0
+    target: 1
+    amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
+    costScope: 0
+    slotType: 11
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0
+  - trigger: 0
+    effect: 45
+    amount: 0
+    target: 1
+    amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
+    costScope: 0
+    slotType: 11
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0

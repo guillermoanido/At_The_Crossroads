@@ -24,4 +24,19 @@ MonoBehaviour:
   wisRequired: 0
   dexRequired: 9
   effectDescription: All your cards can be played at Reflex speed.
-  abilities: []
+  abilities:
+  - trigger: 5
+    effect: 40
+    amount: 1
+    target: 1
+    amountSource: 0
+    bonusCondition: 0
+    conditionalBonus: 0
+    costScope: 0
+    slotType: 11
+    activationSpeed: 1
+    activationCost: 0
+    tapToActivate: 0
+    strikeDamageMultiplier: 1
+    strikeBonusDamage: 0
+    strikeDestroysWeapon: 0

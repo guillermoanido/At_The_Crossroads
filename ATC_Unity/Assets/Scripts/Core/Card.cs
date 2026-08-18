@@ -55,8 +55,26 @@ public class Card : ScriptableObject
         Channel
     }
 
+    /// Anything that gets equipped and can therefore be targeted by equipment removal
+    /// (Earthquake, Sunder, Disarm, Bait and Switch, Slingshot's cost).
     public bool IsEquipment
-        => cardType == CardType.Weapon || cardType == CardType.Accesory || cardType == CardType.Armour;
+    {
+        get
+        {
+            switch (cardType)
+            {
+                case CardType.Weapon:
+                case CardType.Armour:
+                case CardType.Accesory:
+                case CardType.Shield:
+                case CardType.Consumable:
+                case CardType.Equipment:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
 
     public bool IsSpell => cardType == CardType.Spell;
     public bool IsMiracle => cardType == CardType.Miracle;

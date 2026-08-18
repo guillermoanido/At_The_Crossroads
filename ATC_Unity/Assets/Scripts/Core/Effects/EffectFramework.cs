@@ -26,6 +26,20 @@ public enum Trigger
     OnAnyPlayerPlaysSecondCard,
 }
 
+/// A Strike waiting to be spent. Strike does not attack by itself: it untaps a weapon and leaves
+/// this charge on it, and the weapon's NEXT activation is resolved with these modifiers applied.
+public class StrikeBuff
+{
+    public int multiplier = 1;
+    public int bonus;
+    public bool destroysWeapon;
+
+    /// Set when the Strike card itself was Reflex speed (Backstab). The readied permanent may then
+    /// be activated at Reflex speed whatever its own printed speed says — that is what lets you
+    /// react on the opponent's turn, swinging with a weapon or blocking with a shield.
+    public bool grantsReflexActivation;
+}
+
 public class DamageEvent
 {
     public Player defender;
@@ -41,6 +55,10 @@ public class EffectContext
     public Player controller;
     public Player opponent;
     public DamageEvent damage;
+
+    /// Set by an unpaid cost. RunSequence stops when this is true, so the rest of the card
+    /// (the part you were paying FOR) never happens.
+    public bool aborted;
 }
 
 public class StackItem
@@ -145,6 +163,11 @@ public enum EffectKind
 
     // Pickpocket: look at the opponent's hand and take one of the cards in it.
     TakeCardFromOpponentHand,
+
+    // A COST, not a benefit: give up one of your Equipment — either one in play (it goes to the
+    // discard) or one already in your discard (it is removed from the game). Put it BEFORE the
+    // ability it pays for; if it cannot be paid the rest of the card is aborted. (Slingshot)
+    SacrificeEquipment,
 }
 
 public enum EffectTarget
@@ -256,8 +279,20 @@ public static class TargetFilters
     public static bool IsOwnWeaponInPlay(Targetable t, Player controller)
         => IsCardInPlay(t) && t.Owner == controller && t.Data != null && t.Data.cardType == Card.CardType.Weapon;
 
+    /// What a Strike may ready. Shields count: readying one lets you answer with a block the same
+    /// way readying a weapon lets you answer with an attack.
+    public static bool IsOwnStrikeTargetInPlay(Targetable t, Player controller)
+        => IsCardInPlay(t) && t.Owner == controller && t.Data != null
+        && (t.Data.cardType == Card.CardType.Weapon || t.Data.cardType == Card.CardType.Shield);
+
     public static bool IsOwnEquipmentInPlay(Targetable t, Player controller)
         => IsCardInPlay(t) && t.Owner == controller && t.Data != null && t.Data.IsEquipment;
+
+    /// What Slingshot's cost may eat: your Equipment on the battlefield, or one already lying in
+    /// your discard pile.
+    public static bool IsOwnEquipmentInPlayOrDiscard(Targetable t, Player controller)
+        => t != null && t.Data != null && t.Data.IsEquipment
+        && (IsOwnEquipmentInPlay(t, controller) || IsInOwnDiscard(t, controller));
 
     public static bool IsConditionInPlay(Targetable t)
         => IsCardInPlay(t) && t.Data != null && t.Data.cardType == Card.CardType.Condition;
