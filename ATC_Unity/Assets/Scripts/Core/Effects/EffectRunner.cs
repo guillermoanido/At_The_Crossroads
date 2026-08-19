@@ -82,6 +82,12 @@ public class EffectRunner : MonoBehaviour
 
         foreach (var a in abilities)
         {
+            if (a.onlyIfDamageDealt && !ctx.dealtDamage)
+            {
+                Debug.Log($"[Effect] {ctx.sourceCardData?.cardName}: {a.effect} skipped — no damage landed.");
+                continue;
+            }
+
             Debug.Log($"[Effect] {Describe(a, ctx)}");
             yield return ResolveOne(a, ctx, strikeTarget);
 
@@ -170,6 +176,16 @@ public class EffectRunner : MonoBehaviour
                 break;
             case EffectKind.SacrificeEquipment:
                 yield return DoSacrificeEquipment(ctx);
+                break;
+            case EffectKind.ReturnTargetEquipmentFromDiscardToHand:
+                yield return PickTarget(ctx, t => TargetFilters.IsOwnEquipmentInDiscard(t, ctx.controller),
+                    "Choose an Equipment in your discard to take back", t => t.Owner.ReturnToHand(t.gameObject));
+                break;
+            case EffectKind.BurnSpellsFromDiscardForDamage:
+                yield return DoBurnSpellsForDamage(ctx, EffectiveAmount(a, ctx), a.conditionalBonus);
+                break;
+            case EffectKind.SearchDeckForEquipment:
+                DoSearchDeckForEquipment(ctx);
                 break;
             case EffectKind.RearrangeStack:
                 yield return DoRearrangeStack(ctx);
@@ -280,7 +296,14 @@ public class EffectRunner : MonoBehaviour
         {
             case EffectKind.DealDamage:
                 if (aimed != null && amount > 0)
+                {
+                    int before = aimed.CurrentHp;
                     aimed.TakeDamage(amount, ctx.sourceCardGO, ctx.sourceCardData);
+
+                    // "If it deals damage" means damage that actually landed, so a hit fully eaten
+                    // by Block or a Divine Shield does not arm Sacrificial Dagger's Bleed.
+                    if (aimed.CurrentHp < before) ctx.dealtDamage = true;
+                }
                 break;
             case EffectKind.GainBlock:
                 ctx.controller?.AdjustDefense(amount);
@@ -299,6 +322,15 @@ public class EffectRunner : MonoBehaviour
                 break;
             case EffectKind.IncreaseMaxStamina:
                 ctx.controller?.IncreaseMaxStamina(amount);
+                break;
+            case EffectKind.RemoveAllBleed:
+                ctx.controller?.ClearBleed();
+                break;
+            case EffectKind.AvoidAndReflectNextDamage:
+                ctx.controller?.AvoidAndReflectNextDamage();
+                break;
+            case EffectKind.PreventAllDamageUntilNextTurn:
+                ctx.controller?.PreventAllDamageUntilNextTurn();
                 break;
             case EffectKind.ReduceIncomingDamage:
                 if (ctx.damage != null) ctx.damage.amount = Mathf.Max(0, ctx.damage.amount - amount);
@@ -502,6 +534,74 @@ public class EffectRunner : MonoBehaviour
 
     // Discarding is a choice: the player losing the cards picks which ones go, one prompt per card.
     // NetworkTargeting sends the prompt to THAT player's machine, not the caster's.
+    // Gatling Wand: exile up to `maxSpells` Spells from your own discard, dealing `damagePer` for
+    // each one removed. "Up to" — cancelling just stops early and keeps whatever already landed.
+    private IEnumerator DoBurnSpellsForDamage(EffectContext ctx, int maxSpells, int damagePer)
+    {
+        var caster = ctx.controller;
+        if (caster == null) yield break;
+
+        int removed = 0;
+        for (int i = 0; i < maxSpells; i++)
+        {
+            if (TargetingService.Collect(t => TargetFilters.IsOwnSpellInDiscard(t, caster)).Count == 0) break;
+
+            Targetable chosen = null;
+            bool done = false;
+            NetworkTargeting.Request(
+                chooser: caster,
+                filter: t => TargetFilters.IsOwnSpellInDiscard(t, caster),
+                prompt: $"Remove a Spell from your discard for {damagePer} damage ({maxSpells - i} left)",
+                onChosen: t => { chosen = t; done = true; },
+                onCancel: () => done = true);
+
+            yield return new WaitUntil(() => done);
+            if (chosen == null) break;   // declined the rest
+
+            caster.SendToExile(chosen.gameObject);
+            removed++;
+        }
+
+        int total = removed * damagePer;
+        if (total > 0 && ctx.opponent != null)
+        {
+            Debug.Log($"[Effect] {caster.name} removed {removed} Spell(s) for {total} damage.");
+            ctx.opponent.TakeDamage(total, ctx.sourceCardGO, ctx.sourceCardData);
+            ctx.dealtDamage = true;
+        }
+        else Debug.Log($"[Effect] {caster.name} removed no Spells — no damage.");
+    }
+
+    // The Right Tool for the Job. There is no deck-browser UI, so this takes the first Equipment
+    // it finds — the deck is shuffled, so that is effectively a random one rather than a chosen
+    // one. Swap in a picker when a deck-search screen exists.
+    private static void DoSearchDeckForEquipment(EffectContext ctx)
+    {
+        var searcher = ctx.controller;
+        var deck = searcher != null ? searcher.deckManager : null;
+        if (deck == null || searcher.handManager == null) return;
+
+        int found = -1;
+        for (int i = 0; i < deck.allCards.Count; i++)
+        {
+            var card = deck.allCards[i];
+            if (card != null && card.IsEquipment) { found = i; break; }
+        }
+
+        if (found < 0)
+        {
+            Debug.Log($"[Effect] {searcher.name} finds no Equipment in their deck.");
+            deck.Shuffle();
+            return;
+        }
+
+        var taken = deck.allCards[found];
+        deck.allCards.RemoveAt(found);
+        searcher.handManager.AddCardToHand(taken);
+        deck.Shuffle();
+        Debug.Log($"[Effect] {searcher.name} searches out {taken.cardName} and shuffles.");
+    }
+
     // Slingshot's cost. An Equipment on the battlefield is discarded; one already in the discard
     // is removed from the game. Declining, or having nothing to give, aborts the rest of the card.
     private IEnumerator DoSacrificeEquipment(EffectContext ctx)

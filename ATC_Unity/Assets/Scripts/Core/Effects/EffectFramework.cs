@@ -59,6 +59,10 @@ public class EffectContext
     /// Set by an unpaid cost. RunSequence stops when this is true, so the rest of the card
     /// (the part you were paying FOR) never happens.
     public bool aborted;
+
+    /// True once some damage in this sequence actually landed on a defender. Lets a later ability
+    /// on the same card say "if it deals damage, …" (Sacrificial Dagger's Bleed).
+    public bool dealtDamage;
 }
 
 public class StackItem
@@ -168,6 +172,20 @@ public enum EffectKind
     // discard) or one already in your discard (it is removed from the game). Put it BEFORE the
     // ability it pays for; if it cannot be paid the rest of the card is aborted. (Slingshot)
     SacrificeEquipment,
+
+    RemoveAllBleed,                             // Bandage
+    ReturnTargetEquipmentFromDiscardToHand,     // Reforge
+    SearchDeckForEquipment,                     // The Right Tool for the Job
+
+    // Holy Parry: soak the next damage this turn and throw the same amount back.
+    AvoidAndReflectNextDamage,
+
+    // Gatling Wand: exile up to `amount` Spells from your discard, dealing damage for each.
+    // `conditionalBonus` carries the damage per spell.
+    BurnSpellsFromDiscardForDamage,
+
+    // Smoke Bomb: no damage at all reaches you until your next turn starts.
+    PreventAllDamageUntilNextTurn,
 }
 
 public enum EffectTarget
@@ -243,8 +261,17 @@ public class CardAbility
     [Tooltip("Extra stamina spent to activate (the card's energyCost was already paid when it was played).")]
     public int activationCost = 0;
 
+    [Tooltip("Life paid to activate, on top of any stamina. You cannot pay life you don't have.")]
+    public int activationLifeCost = 0;
+
+    [Tooltip("Total activations this card ever gets (Torch = 2). 0 means unlimited. The card is discarded once its last use is spent.")]
+    public int maxUses = 0;
+
     [Tooltip("If true the card taps when activated and can't be used again until it untaps at your upkeep.")]
     public bool tapToActivate = true;
+
+    [Tooltip("Skip this ability unless damage already landed earlier on the same card (Sacrificial Dagger's Bleed).")]
+    public bool onlyIfDamageDealt = false;
 
     [Header("Strike ability only (effect = Strike)")]
     [Tooltip("You pick one of YOUR weapons in play; it attacks for its damage WITHOUT tapping. Base damage is multiplied by this (Hurl = 2).")]
@@ -306,6 +333,10 @@ public static class TargetFilters
 
     public static bool IsOwnSpellInDiscard(Targetable t, Player controller)
         => IsInOwnDiscard(t, controller) && t.Data != null && t.Data.cardType == Card.CardType.Spell;
+
+    /// Reforge pulls gear back out of the discard pile.
+    public static bool IsOwnEquipmentInDiscard(Targetable t, Player controller)
+        => IsInOwnDiscard(t, controller) && t.Data != null && t.Data.IsEquipment;
 
     /// A card currently waiting on the stack — identified by the card object a stack item points at.
     public static bool IsOnStack(Targetable t)

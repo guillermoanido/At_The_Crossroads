@@ -36,7 +36,10 @@ MonoBehaviour:
     slotType: 11
     activationSpeed: 1
     activationCost: 0
+    activationLifeCost: 0
+    maxUses: 0
     tapToActivate: 0
+    onlyIfDamageDealt: 0
     strikeDamageMultiplier: 1
     strikeBonusDamage: 0
     strikeDestroysWeapon: 0

@@ -81,6 +81,8 @@ public class Player : MonoBehaviour
 
     // Evasive Step: the next card damage aimed at this player is ignored outright.
     private bool avoidNextDirectDamage;
+    private bool reflectNextDamage;
+    private bool damageImmune;
 
     // Flow State: the controller's next card ignores its speed restriction.
     private bool nextCardAtReflexSpeed;
@@ -100,6 +102,27 @@ public class Player : MonoBehaviour
     public void GrantFreeEquipment() => nextEquipmentFree = true;
 
     public void AvoidNextDirectDamage() => avoidNextDirectDamage = true;
+
+    /// Holy Parry: soak the next hit and throw the same amount straight back.
+    public void AvoidAndReflectNextDamage()
+    {
+        avoidNextDirectDamage = true;
+        reflectNextDamage = true;
+    }
+
+    /// Smoke Bomb: nothing gets through until this player's next turn begins.
+    public void PreventAllDamageUntilNextTurn()
+    {
+        damageImmune = true;
+        Debug.Log($"[Damage] {name} cannot be damaged until their next turn.");
+    }
+
+    public void ClearBleed()
+    {
+        if (Bleed == 0) return;
+        Debug.Log($"[Bleed] {name} clears {Bleed} Bleed.");
+        Bleed = 0;
+    }
     public void GrantNextCardReflexSpeed() => nextCardAtReflexSpeed = true;
 
     /// Put a card aside. At this player's next upkeep it returns to hand costing nothing.
@@ -134,6 +157,7 @@ public class Player : MonoBehaviour
         reflexLocked = false;
         freeCostsNoDraw = false;
         avoidNextDirectDamage = false;
+        reflectNextDamage = false;
         nextCardAtReflexSpeed = false;
         nextEquipmentFree = false;
         SpellsPlayedThisTurn = 0;
@@ -343,12 +367,28 @@ public class Player : MonoBehaviour
             sourceCardData = sourceCardData
         };
 
+        // Smoke Bomb stops everything, status damage included, until this player's turn comes back.
+        if (damageImmune)
+        {
+            Debug.Log($"[Damage] {name} is immune — {amount} damage prevented.");
+            return;
+        }
+
         // Evasive Step soaks one whole card's worth of damage — status damage has no source card
         // and slips past it.
         if (sourceCardData != null && avoidNextDirectDamage)
         {
             avoidNextDirectDamage = false;
             Debug.Log($"[Damage] {name} avoids {amount} from {sourceCardData.cardName}.");
+
+            // Holy Parry sends it back. The flag is cleared first, so a parry answering a parry
+            // resolves once each rather than bouncing forever.
+            if (reflectNextDamage)
+            {
+                reflectNextDamage = false;
+                Debug.Log($"[Damage] {name} reflects {amount} back.");
+                Opponent?.TakeDamage(amount, sourceCardGO, sourceCardData);
+            }
             return;
         }
 
@@ -537,10 +577,16 @@ public class Player : MonoBehaviour
         Defense = 0;
         ResetStamina();
 
-        if (queuedUpkeepStamina > 0)
+        // Smoke Bomb protected this player through the opponent's turn; it ends as their own begins.
+        damageImmune = false;
+
+        // Signed, so Adrenaline can book a 2-stamina debt against this upkeep the same way
+        // Bless books a 2-stamina gift.
+        if (queuedUpkeepStamina != 0)
         {
-            Debug.Log($"[Effect] {name} gains {queuedUpkeepStamina} queued stamina at upkeep.");
-            GainStamina(queuedUpkeepStamina);
+            Debug.Log($"[Effect] {name} {(queuedUpkeepStamina > 0 ? "gains" : "loses")} " +
+                      $"{Mathf.Abs(queuedUpkeepStamina)} queued stamina at upkeep.");
+            AdjustStamina(queuedUpkeepStamina);
             queuedUpkeepStamina = 0;
         }
 
@@ -788,11 +834,37 @@ public class Player : MonoBehaviour
             return false;
         }
 
+        // Paying life may not kill you, so the cost has to leave at least 1 HP standing.
+        if (ability.activationLifeCost > 0 && CurrentHp <= ability.activationLifeCost)
+        {
+            Debug.Log($"[Activate] {name} cannot pay {ability.activationLifeCost} life for " +
+                      $"{cardData.cardName} (HP {CurrentHp}).");
+            return false;
+        }
+
+        if (ability.maxUses > 0 && tap != null && !tap.HasUseLeft(ability.maxUses))
+        {
+            Debug.Log($"[Activate] {cardData.cardName} has no uses left.");
+            return false;
+        }
+
         SpendStamina(ability.activationCost);
+        if (ability.activationLifeCost > 0)
+        {
+            AdjustHp(-ability.activationLifeCost);
+            Debug.Log($"[Activate] {name} pays {ability.activationLifeCost} life for {cardData.cardName}.");
+        }
         if (ability.tapToActivate && tap != null) tap.Tap();
 
         Debug.Log($"[Activate] {name} activated {cardData.cardName}.");
         PushToStack(cardGO, cardData, Trigger.Activated);
+
+        // A used-up item is spent the moment its last charge goes, not when it resolves.
+        if (ability.maxUses > 0 && tap != null && tap.SpendUse(ability.maxUses))
+        {
+            Debug.Log($"[Activate] {cardData.cardName} is used up and goes to the discard.");
+            SendToDiscard(cardGO);
+        }
         return true;
     }
 

@@ -55,6 +55,22 @@ public class Card : ScriptableObject
         Channel
     }
 
+    #region Class category
+
+    /// How many different attributes this card demands. Drives the deck-builder categories, so
+    /// nothing extra has to be authored on the asset — the requirements already say it.
+    public int AttributeCount
+        => (strRequired > 0 ? 1 : 0) + (intRequired > 0 ? 1 : 0)
+         + (wisRequired > 0 ? 1 : 0) + (dexRequired > 0 ? 1 : 0);
+
+    /// Needs no attribute at all — any deck can run it.
+    public bool IsColorless => AttributeCount == 0;
+
+    /// Needs two or more attributes, so only a deck that splits its budget can run it.
+    public bool IsMultiClass => AttributeCount >= 2;
+
+    #endregion
+
     /// Anything that gets equipped and can therefore be targeted by equipment removal
     /// (Earthquake, Sunder, Disarm, Bait and Switch, Slingshot's cost).
     public bool IsEquipment

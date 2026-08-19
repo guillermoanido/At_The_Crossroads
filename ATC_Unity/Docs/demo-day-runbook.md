@@ -27,10 +27,19 @@ every time and needs no internet data — the PCs only talk to each other.
 
 | Setting | Set to | Why |
 |---|---|---|
-| Fullscreen Mode | **Windowed** | currently borderless fullscreen; windowed makes alt-tabbing and screenshots sane |
-| Default Screen Width / Height | **1280 × 720** | fits any projector |
-| Resizable Window | **on** | currently off |
-| Run In Background | already **on** ✅ | keep it — otherwise an unfocused window freezes |
+| Fullscreen Mode | **Windowed** | currently *Fullscreen Window*; two instances can't sit side by side |
+| Default Screen Width | **1280** | currently 1920 |
+| Default Screen Height | **720** | currently 1080 |
+| Resizable Window | **tick it** | currently off — this is the only one you can't override at launch |
+| Run In Background | already on ✅ | leave it; an unfocused window freezes without it |
+| Force Single Instance | already off ✅ | leave it — if this were on, the second copy would refuse to start |
+
+**1.3 Two instances on one PC.** Run `Tools/ATC-Two-Instances.ps1` (copy it next to the .exe). It
+launches two copies, sizes them 16:9, and places them side by side automatically. Left window
+hosts, right window joins `localhost`.
+
+It passes `-screen-fullscreen 0 -screen-width -screen-height`, so it works *even before* you change
+the settings above — only "Resizable Window" genuinely needs the Player-settings change.
 
 **1.3 Copy the whole build folder to the second PC.** Both PCs must run the **same build** — a
 mismatched build will connect and then desync.

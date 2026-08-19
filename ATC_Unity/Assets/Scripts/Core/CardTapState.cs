@@ -37,6 +37,23 @@ public class CardTapState : MonoBehaviour
         pendingStrikes.Clear();
     }
 
+    #region Limited uses
+
+    private int usesSpent;
+
+    /// Whether a card with a capped number of activations (Torch = 2) has any left.
+    /// `maxUses` of 0 means unlimited.
+    public bool HasUseLeft(int maxUses) => maxUses <= 0 || usesSpent < maxUses;
+
+    /// Records one activation and reports whether that was the last one the card had.
+    public bool SpendUse(int maxUses)
+    {
+        usesSpent++;
+        return maxUses > 0 && usesSpent >= maxUses;
+    }
+
+    #endregion
+
     #region Strike charges
 
     private readonly List<StrikeBuff> pendingStrikes = new List<StrikeBuff>();

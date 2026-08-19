@@ -19,6 +19,8 @@ public static class CardLibraryGenerator
         foreach (var d in Rogues()) Upsert(d, ref created, ref updated);
         foreach (var d in Mages()) Upsert(d, ref created, ref updated);
         foreach (var d in Clerics()) Upsert(d, ref created, ref updated);
+        foreach (var d in Mixed()) Upsert(d, ref created, ref updated);
+        foreach (var d in Colorless()) Upsert(d, ref created, ref updated);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -166,6 +168,131 @@ public static class CardLibraryGenerator
         public List<CardAbility> abilities;
     }
 
+
+    // Multi-class: spell out every attribute, since these need two or three at once.
+    // The sheet's "FAI" (Faith) maps to the existing WIS stat — it is the same cleric attribute.
+    private static Def X(string name, Card.CardType type, Card.SpeedType speed, int stamina,
+                         int str, int dex, int intel, int wis, string text,
+                         List<CardAbility> abilities = null)
+        => new Def { name = name, type = type, speed = speed, stamina = stamina,
+                     str = str, dex = dex, intel = intel, wis = wis, text = text, abilities = abilities };
+
+    // Colorless: no attribute requirement at all, so any deck can run it.
+    private static Def N(string name, Card.CardType type, Card.SpeedType speed, int stamina,
+                         string text, List<CardAbility> abilities = null)
+        => new Def { name = name, type = type, speed = speed, stamina = stamina, text = text, abilities = abilities };
+
+    private static CardAbility ActivatedCost(EffectKind e, int amt, Card.SpeedType speed,
+                                             EffectTarget t = EffectTarget.Controller,
+                                             int stamina = 0, int life = 0, int uses = 0)
+        => new CardAbility { trigger = Trigger.Activated, effect = e, amount = amt, target = t,
+                             activationSpeed = speed, activationCost = stamina,
+                             activationLifeCost = life, maxUses = uses, tapToActivate = true };
+
+    /// An ability that only happens when damage already landed earlier on the same card.
+    private static CardAbility IfDamaged(CardAbility a)
+    {
+        a.onlyIfDamageDealt = true;
+        return a;
+    }
+
+    private static List<Def> Mixed() => new List<Def>
+    {
+        X("Shortsword",         Card.CardType.Weapon, Card.SpeedType.Channel, 2, str: 4, dex: 4, intel: 0, wis: 0,
+            "Activate (Channel) — Deal 2 damage.",
+            A(Activated(EffectKind.DealDamage, 2, Card.SpeedType.Channel, EffectTarget.Opponent))),
+
+        X("Runed Gauntlet",     Card.CardType.Weapon, Card.SpeedType.Channel, 2, str: 5, dex: 0, intel: 5, wis: 0,
+            "Activate (Channel) — Deal 2 damage. Scry 1.",
+            A(Activated(EffectKind.DealDamage, 2, Card.SpeedType.Channel, EffectTarget.Opponent),
+              Activated(EffectKind.Scry, 1, Card.SpeedType.Channel))),
+
+        X("The Right Tool for the Job", Card.CardType.Skill, Card.SpeedType.Channel, 1, str: 0, dex: 5, intel: 5, wis: 0,
+            "Search your deck for an Equipment card, reveal it, put it into your hand, then shuffle.",
+            A(OnPlay(EffectKind.SearchDeckForEquipment, 0))),
+
+        X("Holy Parry",         Card.CardType.Spell,  Card.SpeedType.Reflex,  1, str: 0, dex: 5, intel: 0, wis: 5,
+            "Avoid the next source of damage this turn. Deal that damage to your opponent.",
+            A(OnPlay(EffectKind.AvoidAndReflectNextDamage, 0))),
+
+        X("Revelation",         Card.CardType.Spell,  Card.SpeedType.Channel, 1, str: 0, dex: 0, intel: 6, wis: 5,
+            "Scry 2. Draw 2 cards.",
+            A(OnPlay(EffectKind.Scry, 2), OnPlay(EffectKind.DrawCards, 2))),
+
+        X("Reforge",            Card.CardType.Skill,  Card.SpeedType.Channel, 1, str: 5, dex: 0, intel: 5, wis: 0,
+            "Return target Equipment from the discard pile to your hand.",
+            A(OnPlay(EffectKind.ReturnTargetEquipmentFromDiscardToHand, 0))),
+
+        X("Longsword",          Card.CardType.Weapon, Card.SpeedType.Channel, 2, str: 7, dex: 7, intel: 0, wis: 0,
+            "Activate (Channel) — Deal 3 damage.",
+            A(Activated(EffectKind.DealDamage, 3, Card.SpeedType.Channel, EffectTarget.Opponent))),
+
+        X("Gatling Wand",       Card.CardType.Weapon, Card.SpeedType.Channel, 3, str: 10, dex: 0, intel: 7, wis: 0,
+            "Activate (Channel) — Remove up to 3 Spells from your discard. Deals 2 damage for each removed.",
+            // amount = how many spells may be removed; conditionalBonus = damage per spell.
+            A(new CardAbility { trigger = Trigger.Activated, effect = EffectKind.BurnSpellsFromDiscardForDamage,
+                                amount = 3, conditionalBonus = 2, target = EffectTarget.Opponent,
+                                activationSpeed = Card.SpeedType.Channel, tapToActivate = true })),
+
+        X("Hypercognition",     Card.CardType.Talent, Card.SpeedType.Channel, 3, str: 0, dex: 8, intel: 8, wis: 0,
+            "Start of Turn: Draw 1 card.",
+            A(Upkeep(EffectKind.DrawCards, 1))),
+
+        X("Sacrificial Dagger", Card.CardType.Weapon, Card.SpeedType.Channel, 1, str: 0, dex: 5, intel: 0, wis: 7,
+            "Activate (Channel) Pay 3 Life — Deal 3 damage. If it deals damage, apply Bleed 2.",
+            A(ActivatedCost(EffectKind.DealDamage, 3, Card.SpeedType.Channel, EffectTarget.Opponent, life: 3),
+              IfDamaged(Activated(EffectKind.ApplyBleed, 2, Card.SpeedType.Channel, EffectTarget.Opponent)))),
+
+        X("Crusade Blade",      Card.CardType.Weapon, Card.SpeedType.Channel, 3, str: 6, dex: 5, intel: 0, wis: 6,
+            "Activate (Channel) — Deal 4 damage. Restore 2 Life. Apply Burn 2.",
+            A(Activated(EffectKind.DealDamage, 4, Card.SpeedType.Channel, EffectTarget.Opponent),
+              Activated(EffectKind.GainLife, 2, Card.SpeedType.Channel),
+              Activated(EffectKind.ApplyBurn, 2, Card.SpeedType.Channel, EffectTarget.Opponent))),
+
+        X("Greatsword",         Card.CardType.Weapon, Card.SpeedType.Channel, 3, str: 8, dex: 8, intel: 0, wis: 0,
+            "Activate (Channel) — Deal 4 damage.",
+            A(Activated(EffectKind.DealDamage, 4, Card.SpeedType.Channel, EffectTarget.Opponent))),
+    };
+
+    private static List<Def> Colorless() => new List<Def>
+    {
+        N("Torch",           Card.CardType.Equipment,  Card.SpeedType.Channel, 0,
+            "Activate (2 Uses) — Scry 1.",
+            A(ActivatedCost(EffectKind.Scry, 1, Card.SpeedType.Channel, uses: 2))),
+
+        N("Health Potion",   Card.CardType.Skill,      Card.SpeedType.Channel, 1,
+            "Restore 2 Life.",
+            A(OnPlay(EffectKind.GainLife, 2))),
+
+        N("Insight",         Card.CardType.Skill,      Card.SpeedType.Channel, 1,
+            "Scry 1. Draw 1 card.",
+            A(OnPlay(EffectKind.Scry, 1), OnPlay(EffectKind.DrawCards, 1))),
+
+        N("Molotov",         Card.CardType.Consumable, Card.SpeedType.Channel, 2,
+            "Target player gains 5 Burn.",
+            A(OnPlay(EffectKind.ApplyBurn, 5, EffectTarget.Opponent))),
+
+        N("Bandage",         Card.CardType.Consumable, Card.SpeedType.Channel, 1,
+            "Remove all Bleed. Draw a card.",
+            A(OnPlay(EffectKind.RemoveAllBleed, 0), OnPlay(EffectKind.DrawCards, 1))),
+
+        N("Smoke Bomb",      Card.CardType.Consumable, Card.SpeedType.Channel, 2,
+            "You can't take damage until the start of your next turn.",
+            A(OnPlay(EffectKind.PreventAllDamageUntilNextTurn, 0))),
+
+        N("Leather Jerkin",  Card.CardType.Armour,     Card.SpeedType.Channel, 2,
+            "Start of turn: Gain 1 Block.",
+            A(Upkeep(EffectKind.GainBlock, 1))),
+
+        N("Adrenaline",      Card.CardType.Consumable, Card.SpeedType.Channel, 1,
+            "Gain 2 Stamina. On the start of your next turn, you lose 2 Stamina.",
+            A(OnPlay(EffectKind.GainStamina, 2),
+              OnPlay(EffectKind.GainStaminaNextUpkeep, -2))),
+
+        N("Pact Gem",        Card.CardType.Accesory,   Card.SpeedType.Channel, 1,
+            "Activate (Channel) Pay 1 Stamina and 2 Life — Draw 1 card.",
+            A(ActivatedCost(EffectKind.DrawCards, 1, Card.SpeedType.Channel, stamina: 1, life: 2))),
+    };
 
     private static List<Def> Warriors() => new List<Def>
     {

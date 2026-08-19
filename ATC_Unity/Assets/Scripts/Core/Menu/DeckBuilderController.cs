@@ -12,7 +12,8 @@ using UnityEngine.UI;
 /// built while the game is running cannot be a ScriptableObject asset.
 public class DeckBuilderController : MonoBehaviour
 {
-    public enum Filter { All, Strength, Dexterity, Intellect, Wisdom }
+    // Appended, not reordered — the filter buttons pass these as ints from the Inspector.
+    public enum Filter { All, Strength, Dexterity, Intellect, Wisdom, Mix, Colorless }
 
     [Header("Scenes")]
     [SerializeField] private string menuScene = "Main Menu";
@@ -93,10 +94,15 @@ public class DeckBuilderController : MonoBehaviour
     {
         switch (filter)
         {
+            // An attribute filter shows everything that attribute could put in a deck, multi-class
+            // cards included — you are browsing "what can a STR deck run", not "what is pure STR".
             case Filter.Strength:   return card.strRequired > 0;
             case Filter.Dexterity:  return card.dexRequired > 0;
             case Filter.Intellect:  return card.intRequired > 0;
             case Filter.Wisdom:     return card.wisRequired > 0;
+
+            case Filter.Mix:        return card.IsMultiClass;
+            case Filter.Colorless:  return card.IsColorless;
             default:                return true;
         }
     }
@@ -104,7 +110,7 @@ public class DeckBuilderController : MonoBehaviour
     /// Wired to the filter buttons. Takes an int so it can be set from the Inspector.
     public void SetFilter(int filterIndex)
     {
-        filter = (Filter)Mathf.Clamp(filterIndex, 0, 4);
+        filter = (Filter)Mathf.Clamp(filterIndex, 0, (int)Filter.Colorless);
         BuildCatalogue();
     }
 
