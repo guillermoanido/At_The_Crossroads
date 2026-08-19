@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class GameManager : MonoBehaviour
@@ -8,6 +9,13 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] private Player player1;
     [SerializeField] private Player player2;
+
+    [Header("Turn Order")]
+    [Tooltip("Sides on the die each player rolls at the start of the match. Highest goes first; ties are re-rolled.")]
+    [SerializeField] private int turnOrderDieSides = 20;
+
+    [Tooltip("How long the opening-roll result stays on screen before it clears itself.")]
+    [SerializeField] private float rollMessageSeconds = 6f;
 
     [Header("Setup")]
     [Tooltip("How many cards each player holds at the start of the game.")]
@@ -70,6 +78,10 @@ public class GameManager : MonoBehaviour
     /// defaults all match. Seats are mapped through the display slots, like the rest of the view.
     public void ClientApplyTurnState(GamePhase phase, int activeSeat, int prioritySeat)
     {
+        // A real active seat means the host has started the match, which is this machine's cue to
+        // drop the connect HUD.
+        if (activeSeat >= 0) MatchStarted = true;
+
         if (activeSeat != lastSyncedActiveSeat)
         {
             lastSyncedActiveSeat = activeSeat;
@@ -161,9 +173,75 @@ public class GameManager : MonoBehaviour
         if (player1 != null) player1.deckManager.Shuffle();
         if (player2 != null) player2.deckManager.Shuffle();
         DealOpeningHands();
-        SetActivePlayer(player1);
+
+        SetActivePlayer(RollForFirstPlayer());
+        MatchStarted = true;
+
         skipNextDraw = true;
         BeginPhase(GamePhase.Draw);
+    }
+
+    /// Both players roll; the higher number takes the first turn. Ties are re-rolled, so the roll
+    /// always produces a winner. Runs on the server (or locally offline) — the result reaches the
+    /// other machine as the synced active seat, and the numbers are announced separately so both
+    /// players can see the roll that decided it.
+    private Player RollForFirstPlayer()
+    {
+        if (player1 == null || player2 == null) return player1 != null ? player1 : player2;
+
+        int sides = Mathf.Max(2, turnOrderDieSides);
+        int rollP1, rollP2;
+        int safety = 0;
+
+        do
+        {
+            rollP1 = UnityEngine.Random.Range(1, sides + 1);
+            rollP2 = UnityEngine.Random.Range(1, sides + 1);
+            safety++;
+        }
+        while (rollP1 == rollP2 && safety < 50);
+
+        int winningSeat = rollP1 >= rollP2 ? 0 : 1;
+        Debug.Log($"[Match] Opening roll — Player 1: {rollP1}, Player 2: {rollP2}. " +
+                  $"Seat {winningSeat} goes first.");
+
+        if (OnlineMode) NetworkPlayerSeat.ServerAnnounceRoll(rollP1, rollP2, winningSeat);
+        else ShowOpeningRoll(rollP1, rollP2, winningSeat);
+
+        return PlayerForSeat(winningSeat);
+    }
+
+    /// Writes the opening roll from the point of view of whoever is looking at THIS screen, so each
+    /// player reads their own number first. Hotseat shares one screen, so it names both players.
+    public void ShowOpeningRoll(int rollSeat0, int rollSeat1, int winningSeat)
+    {
+        GameLogHUD.Ensure();
+
+        if (!OnlineMode)
+        {
+            GameLog.Instruct("log.roll_hotseat", rollSeat0, rollSeat1, winningSeat + 1);
+        }
+        else
+        {
+            int mine   = LocalSeat == 0 ? rollSeat0 : rollSeat1;
+            int theirs = LocalSeat == 0 ? rollSeat1 : rollSeat0;
+
+            GameLog.Instruct(winningSeat == LocalSeat ? "log.roll_you_first" : "log.roll_opponent_first",
+                             mine, theirs);
+        }
+
+        StartCoroutine(ClearRollMessageLater());
+    }
+
+    // Nothing routinely clears the standing instruction, so without this the roll would sit over
+    // the board for the whole match.
+    private IEnumerator ClearRollMessageLater()
+    {
+        string shown = GameLog.Instruction;
+        yield return new WaitForSeconds(Mathf.Max(1f, rollMessageSeconds));
+
+        // Only clear our own line — a targeting prompt may well have replaced it by now.
+        if (GameLog.Instruction == shown) GameLog.ClearInstruction();
     }
 
     private void DealOpeningHands()
@@ -221,6 +299,10 @@ public class GameManager : MonoBehaviour
     /// The winner, once someone has won. Null while the match is still running.
     public Player Winner { get; private set; }
     public bool MatchOver => Winner != null;
+
+    /// True once the match is actually underway. The connect HUD watches this so the host/join
+    /// controls disappear the moment play begins. Clients set it when the first turn state lands.
+    public bool MatchStarted { get; private set; }
 
     /// Called after any HP change. Running out of life loses you the match.
     public void CheckForDefeat(Player player)

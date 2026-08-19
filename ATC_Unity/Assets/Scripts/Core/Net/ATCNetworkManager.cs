@@ -32,6 +32,7 @@ public class ATCNetworkManager : NetworkManager
     private LinkState link = LinkState.Idle;
     private string linkDetail = string.Empty;
     private float connectDeadline;
+    private bool connectHudHidden;
 
     private bool Online => GameManager.Instance == null || GameManager.Instance.OnlineMode;
 
@@ -71,6 +72,23 @@ public class ATCNetworkManager : NetworkManager
         }
     }
 
+    // Host / Client / address controls are setup, not gameplay. Once the match is actually running
+    // they are just clutter over the board — and pressing one mid-match would tear the game down.
+    private void HideConnectHudOnceMatchStarts()
+    {
+        if (connectHudHidden) return;
+
+        var gm = GameManager.Instance;
+        if (gm == null || !gm.MatchStarted) return;
+
+        connectHudHidden = true;
+
+        var hud = GetComponent<NetworkManagerHUD>();
+        if (hud != null) hud.enabled = false;
+
+        Debug.Log("[Net] Match started — connect HUD hidden.");
+    }
+
     private void BeginConnecting()
     {
         link = LinkState.Connecting;
@@ -83,6 +101,8 @@ public class ATCNetworkManager : NetworkManager
     public override void Update()
     {
         base.Update();
+
+        HideConnectHudOnceMatchStarts();
 
         if (link != LinkState.Connecting) return;
 
@@ -147,6 +167,12 @@ public class ATCNetworkManager : NetworkManager
     private void OnGUI()
     {
         if (!Online) return;
+
+        // Everything here is connection setup, so it goes away once the match is live and the board
+        // becomes the interface. A failure is the exception: losing the host mid-match is exactly
+        // when the player needs to be told why and given a way back to the menu.
+        var gm = GameManager.Instance;
+        if (gm != null && gm.MatchStarted && link != LinkState.Failed) return;
 
         GUILayout.BeginArea(new Rect(10, 118, 470, 220));
 

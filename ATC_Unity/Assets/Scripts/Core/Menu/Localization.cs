@@ -171,6 +171,9 @@ public static class Localization
         ["prompt.strike"]        = new[] { "Choose one of your weapons or shields to ready — it untaps and its next activation is buffed", "Elige un arma o escudo para preparar — se endereza y su próxima activación se potencia" },
         ["prompt.sacrifice_equipment"] = new[] { "Give up an Equipment: one in play is discarded, one in your discard is removed from the game", "Entrega un Equipo: uno en juego va al descarte, uno del descarte se elimina del juego" },
         ["prompt.replace_equipment"] = new[] { "That slot is full — pick the card to swap out. It goes to your discard pile.", "Esa ranura está llena — elige la carta a cambiar. Irá a tu pila de descarte." },
+        ["log.roll_you_first"]      = new[] { "Opening roll — you rolled {0}, your opponent rolled {1}. You go first!", "Tirada inicial — sacaste {0}, tu rival sacó {1}. ¡Empiezas tú!" },
+        ["log.roll_opponent_first"] = new[] { "Opening roll — you rolled {0}, your opponent rolled {1}. Your opponent goes first.", "Tirada inicial — sacaste {0}, tu rival sacó {1}. Empieza tu rival." },
+        ["log.roll_hotseat"]        = new[] { "Opening roll — Player 1 rolled {0}, Player 2 rolled {1}. Player {2} goes first!", "Tirada inicial — Jugador 1 sacó {0}, Jugador 2 sacó {1}. ¡Empieza el Jugador {2}!" },
         ["prompt.discard"]       = new[] { "Choose a card to discard", "Elige una carta para descartar" },
         ["prompt.replace"]       = new[] { "is full — choose the card this one replaces", "está lleno — elige la carta que se reemplaza" },
     };

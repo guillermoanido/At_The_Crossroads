@@ -840,6 +840,32 @@ public class NetworkPlayerSeat : NetworkBehaviour
             if (seat != null) seat.ServerApplyMatchState(gm);
     }
 
+    /// Tell both machines what the opening roll was. Only the numbers travel — each client writes
+    /// its own sentence, so every player reads their own roll first rather than "Player 1"/"Player 2"
+    /// from the host's perspective. One ClientRpc reaches every client, so a single seat sends it.
+    public static void ServerAnnounceRoll(int rollSeat0, int rollSeat1, int winningSeat)
+    {
+        if (!NetworkServer.active)
+        {
+            GameManager.Instance?.ShowOpeningRoll(rollSeat0, rollSeat1, winningSeat);
+            return;
+        }
+
+        foreach (var seat in serverSeats)
+        {
+            if (seat == null) continue;
+            seat.RpcAnnounceRoll(rollSeat0, rollSeat1, winningSeat);
+            return;
+        }
+
+        // Server with no seats spawned yet (shouldn't happen once a match starts) — show it here.
+        GameManager.Instance?.ShowOpeningRoll(rollSeat0, rollSeat1, winningSeat);
+    }
+
+    [ClientRpc]
+    private void RpcAnnounceRoll(int rollSeat0, int rollSeat1, int winningSeat)
+        => GameManager.Instance?.ShowOpeningRoll(rollSeat0, rollSeat1, winningSeat);
+
     private void ServerApplyMatchState(GameManager gm)
     {
         isActiveTurn = BoundPlayer == gm.ActivePlayer;
