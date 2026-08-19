@@ -737,23 +737,50 @@ public class EffectRunner : MonoBehaviour
         }
 
         var panel = scryer.scryPanel;
-        panel.Open(scryer, count);
+
+        // Anything thrown while opening would kill this coroutine, and with it GameStack's resolve
+        // loop — priority would never come back and the match would be unplayable. Scry is not
+        // worth losing the game over, so a broken panel just skips the effect.
+        try
+        {
+            panel.Open(scryer, count);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[Scry] Panel failed to open, skipping the effect: {e}");
+            yield break;
+        }
+
         yield return new WaitUntil(() => !panel.IsOpen);
     }
 
-    /// A full equipment slot took another card — the owner chooses which one it replaces.
-    public void RequestZoneReplacement(Player owner, CardZone zone)
-        => StartCoroutine(ChooseReplacement(owner, zone));
+    /// A full equipment slot took another card — the owner picks which of the ones already there
+    /// it swaps out. The card just played is excluded, so you can never discard the very thing you
+    /// paid for; the chosen one goes to the discard and the new one stays equipped.
+    public void RequestZoneReplacement(Player owner, CardZone zone, GameObject incoming)
+        => StartCoroutine(ChooseReplacement(owner, zone, incoming));
 
-    private IEnumerator ChooseReplacement(Player owner, CardZone zone)
+    private IEnumerator ChooseReplacement(Player owner, CardZone zone, GameObject incoming)
     {
+        System.Predicate<Targetable> swappable =
+            t => TargetFilters.IsInZone(t, zone) && t.gameObject != incoming;
+
+        var options = TargetingService.Collect(swappable);
+        if (options.Count == 0) yield break;   // nothing else in there — the slot was raised, not full
+
         bool done = false;
         NetworkTargeting.Request(
             chooser: owner,
-            filter: t => TargetFilters.IsInZone(t, zone),
-            prompt: $"{zone.name} is full — choose the card this one replaces",
+            filter: swappable,
+            prompt: Localization.T("prompt.replace_equipment"),
             onChosen: t => { owner.SendToDiscard(t.gameObject); done = true; },
-            onCancel: () => done = true);
+            onCancel: () =>
+            {
+                // The one-per-slot rule still has to hold, so declining swaps out the oldest
+                // rather than leaving the board over capacity.
+                if (options[0] != null) owner.SendToDiscard(options[0].gameObject);
+                done = true;
+            });
 
         yield return new WaitUntil(() => done);
     }

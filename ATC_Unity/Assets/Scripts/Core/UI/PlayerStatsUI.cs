@@ -9,8 +9,11 @@ public class PlayerStatsUI : MonoBehaviour
     [SerializeField] private TMP_Text defenseText;
 
     [Header("Statuses")]
-    [Tooltip("Shows every active status beside the other stats. Auto-created next to the defence label if left empty.")]
+    [Tooltip("Shows every active status above the other stats. Auto-created just above the HP label if left empty.")]
     [SerializeField] private TMP_Text statusText;
+
+    [Tooltip("How far above the HP label the status row sits. 0 = one label height. Raise it if the tokens overlap the stats.")]
+    [SerializeField] private float statusOffsetY = 0f;
 
     [Tooltip("Label for each status. Kept to characters LiberationSans actually has — emoji and " +
              "symbols like ✦ are not in it and render as a hollow box. Swap these for TMP sprite " +
@@ -32,19 +35,30 @@ public class PlayerStatsUI : MonoBehaviour
 
     private void Awake() => EnsureStatusLabel();
 
-    // Statuses need somewhere to go even in a scene laid out before they existed, so clone the
-    // defence label and sit the copy just below it.
+    // Statuses need somewhere to go even in a scene laid out before they existed. The row sits
+    // ABOVE the stat block, so Burn / Bleed / Divine Shield read as tokens stacked on top of HP
+    // and Defence. Cloned from the HP label so it inherits the font, size and anchoring the scene
+    // already set up.
     private void EnsureStatusLabel()
     {
-        if (statusText != null || defenseText == null) return;
+        if (statusText != null) return;
 
-        statusText = Instantiate(defenseText, defenseText.transform.parent);
+        var template = hpText != null ? hpText : defenseText;
+        if (template == null) return;
+
+        statusText = Instantiate(template, template.transform.parent);
         statusText.name = "Status Text";
         statusText.text = string.Empty;
 
+        var source = template.rectTransform;
         var rect = statusText.rectTransform;
-        rect.anchoredPosition = defenseText.rectTransform.anchoredPosition
-                              + new Vector2(0f, -rect.sizeDelta.y);
+        rect.anchorMin = source.anchorMin;
+        rect.anchorMax = source.anchorMax;
+        rect.pivot = source.pivot;
+        rect.sizeDelta = source.sizeDelta;
+
+        float step = statusOffsetY > 0f ? statusOffsetY : Mathf.Max(source.sizeDelta.y, 24f);
+        rect.anchoredPosition = source.anchoredPosition + new Vector2(0f, step);
     }
 
     private void Update()

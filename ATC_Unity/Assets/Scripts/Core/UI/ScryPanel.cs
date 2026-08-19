@@ -40,12 +40,26 @@ public class ScryPanel : MonoBehaviour
     private readonly HashSet<int> markedForDiscard = new HashSet<int>();
     private readonly List<GameObject> spawned = new List<GameObject>();
 
-    public bool IsOpen => root != null && root.activeSelf;
+    // Tracked as a field rather than read off root.activeSelf. The panel root starts INACTIVE in
+    // the scene and this component lives on it, so Awake does not run until the first Open turns
+    // the object on — reading the flag keeps that late Awake from mistaking an opening panel for
+    // a closed one and tearing it down.
+    private bool isOpen;
+
+    public bool IsOpen => isOpen;
 
     private void Awake()
     {
         WireScaleSlider();
-        Close();
+
+        // Only hide on the genuine first wake. If Awake is arriving late — because Open just
+        // activated us — closing here would destroy the cards we are in the middle of showing.
+        if (!isOpen) HideRoot();
+    }
+
+    private void HideRoot()
+    {
+        if (root != null) root.SetActive(false);
     }
 
     private void Update()
@@ -82,8 +96,7 @@ public class ScryPanel : MonoBehaviour
         revealed.AddRange(cards);
         markedForDiscard.Clear();
 
-        RebuildList();
-        if (root != null) root.SetActive(true);
+        Show();
         Debug.Log($"[Scry] Looking at the top {revealed.Count} card(s) — click any to discard them.");
     }
 
@@ -92,28 +105,55 @@ public class ScryPanel : MonoBehaviour
         var deck = scryingPlayer != null ? scryingPlayer.deckManager : null;
         if (deck == null || count <= 0) return;
 
+        var top = deck.PeekTop(count);
+        if (top.Count == 0)
+        {
+            Debug.Log($"[Scry] {scryingPlayer.name} has an empty deck — nothing to look at.");
+            return;
+        }
+
         owner = scryingPlayer;
         revealed.Clear();
-        revealed.AddRange(deck.PeekTop(count));
+        revealed.AddRange(top);
         markedForDiscard.Clear();
 
-        RebuildList();
-        if (root != null) root.SetActive(true);
-        Debug.Log($"[Scry] {owner.name} looks at the top {revealed.Count} card(s) — click any to discard them.");
+        Show();
+        Debug.Log($"[Scry] {scryingPlayer.name} looks at the top {revealed.Count} card(s) — " +
+                  "click any to discard them, then close to confirm.");
     }
 
-    /// Marked cards go to the discard pile; everything else returns to the top of the deck in the
-    /// order it was revealed.
-    public void Confirm()
+    // Activate BEFORE building the list: turning the root on is what triggers a late Awake, and
+    // doing it first means Awake sees isOpen and leaves the panel alone, so the cards we spawn
+    // immediately after survive.
+    private void Show()
     {
+        isOpen = true;
+        if (root != null) root.SetActive(true);
+        RebuildList();
+    }
+
+    /// Closing IS confirming. You look at the top cards, click the ones you don't want, and shut
+    /// the window: the clicked ones go to the discard pile and everything else goes back on top in
+    /// the order it was revealed. That is the whole keyword, so there is no separate confirm step.
+    public void Close()
+    {
+        if (!isOpen)
+        {
+            HideRoot();     // a stray close (or the first Awake) — nothing to resolve
+            return;
+        }
+
+        isOpen = false;     // set first, so the SetActive(false) below cannot re-enter this
+
         var kept = new List<Card>();
         var binned = new List<Card>();
-
         for (int i = 0; i < revealed.Count; i++)
         {
             if (markedForDiscard.Contains(i)) binned.Add(revealed[i]);
             else kept.Add(revealed[i]);
         }
+
+        string who = owner != null ? owner.name : "remote player";
 
         if (remoteAnswer != null)
         {
@@ -132,23 +172,34 @@ public class ScryPanel : MonoBehaviour
             foreach (var card in binned) owner.PutCardInDiscard(card);
         }
 
-        Debug.Log($"[Scry] {(owner != null ? owner.name : "?")} kept {kept.Count} on top " +
-                  $"and discarded {binned.Count}.");
-        Close();
-    }
+        Debug.Log($"[Scry] {who} kept {kept.Count} on top and discarded {binned.Count}.");
 
-    public void Close()
-    {
         ClearSpawned();
-        if (root != null) root.SetActive(false);
+        HideRoot();
         revealed.Clear();
         markedForDiscard.Clear();
         owner = null;
+    }
 
-        // Never leave the host waiting: closing without confirming counts as keeping everything.
-        var pending = remoteAnswer;
-        remoteAnswer = null;
-        pending?.Invoke(new int[0]);
+    /// Kept so any button already wired to Confirm() behaves the same as the close button.
+    public void Confirm() => Close();
+
+    // If anything else switches this panel off while a scry is live, resolve it rather than
+    // leaving the effect waiting on a window that is no longer on screen.
+    private void OnDisable()
+    {
+        if (!isOpen) return;
+
+        // Scene teardown / leaving play mode also disables us. Touching the deck or the discard
+        // pile at that point throws, so just drop the state.
+        if (!gameObject.scene.isLoaded)
+        {
+            isOpen = false;
+            remoteAnswer = null;
+            return;
+        }
+
+        Close();
     }
 
     /// Clicking an entry toggles whether it is being thrown away.

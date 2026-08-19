@@ -693,9 +693,10 @@ public class Player : MonoBehaviour
 
         nextCardSurcharge = 0;   // Tithe taxes the NEXT card only
 
-        // The slot was already full, so something has to go — the player picks which.
+        // The slot was already full, so something has to go — the player picks which one the card
+        // they just played swaps out.
         if (zoneWasFull && EffectRunner.Instance != null)
-            EffectRunner.Instance.RequestZoneReplacement(this, zone);
+            EffectRunner.Instance.RequestZoneReplacement(this, zone, cardGO);
 
         RegisterCardPlayed(cardData);
         PushToStack(cardGO, cardData, Trigger.OnPlay);

@@ -170,6 +170,7 @@ public static class Localization
         ["prompt.pickpocket"]    = new[] { "Choose a card to take from your opponent's hand", "Elige una carta para robar de la mano de tu oponente" },
         ["prompt.strike"]        = new[] { "Choose one of your weapons or shields to ready — it untaps and its next activation is buffed", "Elige un arma o escudo para preparar — se endereza y su próxima activación se potencia" },
         ["prompt.sacrifice_equipment"] = new[] { "Give up an Equipment: one in play is discarded, one in your discard is removed from the game", "Entrega un Equipo: uno en juego va al descarte, uno del descarte se elimina del juego" },
+        ["prompt.replace_equipment"] = new[] { "That slot is full — pick the card to swap out. It goes to your discard pile.", "Esa ranura está llena — elige la carta a cambiar. Irá a tu pila de descarte." },
         ["prompt.discard"]       = new[] { "Choose a card to discard", "Elige una carta para descartar" },
         ["prompt.replace"]       = new[] { "is full — choose the card this one replaces", "está lleno — elige la carta que se reemplaza" },
     };
